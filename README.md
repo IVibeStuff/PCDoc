@@ -39,6 +39,8 @@ The same scan also runs as plain PowerShell: see [`scripts/README.md`](scripts/R
 
 **Linux** (Mono): `build/build-linux-mono.sh`.
 
+**GitHub Actions**: `.github/workflows/build.yml` builds the EXE on a Windows runner for every push to `main`. When a release is published it attaches `PCAudit.exe`, `PCAudit-<version>-win.zip` and `SHA256SUMS.txt` to the release, with a build-provenance attestation. To attach a build to an existing release, run the workflow by hand (Actions > Build PCAudit.exe > Run workflow) and enter the release tag.
+
 To sign the EXE: `signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /a dist\PCAudit.exe`
 
 ## Version bump

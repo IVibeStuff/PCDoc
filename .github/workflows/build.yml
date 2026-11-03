@@ -1,0 +1,73 @@
+name: Build PCAudit.exe
+
+# Builds the EXE on a GitHub-hosted Windows machine with the C# compiler that ships with Windows.
+# - Every push to main and every pull request: build, keep the EXE as a workflow artifact.
+# - Publishing a release (or running this by hand with a release tag): also attach the EXE,
+#   a zip with the README, and SHA-256 checksums to that release.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to attach the build to (for example v0.4.4). Leave empty to only build.
+        required: false
+        default: ''
+
+permissions:
+  contents: write        # attach files to releases
+  id-token: write        # build provenance
+  attestations: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        shell: cmd
+        run: build-windows.cmd
+
+      - name: Package
+        id: pkg
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path src/PCAudit.cs -Pattern 'public const string Version = "([\d.]+)"').Matches[0].Groups[1].Value
+          $exeVer = (Get-Item dist/PCAudit.exe).VersionInfo.FileVersion
+          Write-Host "PC Audit $ver (file version $exeVer)"
+          $dir = "out/PCAudit-$ver"
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          Copy-Item dist/PCAudit.exe $dir/
+          Copy-Item docs/README.txt $dir/
+          Copy-Item dist/PCAudit.exe out/PCAudit.exe
+          Compress-Archive -Path $dir -DestinationPath "out/PCAudit-$ver-win.zip" -Force
+          Remove-Item -Recurse $dir
+          Get-ChildItem out -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content out/SHA256SUMS.txt
+          Get-Content out/SHA256SUMS.txt
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Record build provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/PCAudit.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PCAudit-${{ steps.pkg.outputs.version }}
+          path: out/
+
+      - name: Attach to release
+        if: github.event_name == 'release' || inputs.release_tag != ''
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.release_tag }}
+        run: |
+          $ver = '${{ steps.pkg.outputs.version }}'
+          if ($env:TAG.TrimStart('v') -ne $ver) { Write-Warning "Release tag $env:TAG does not match the source version $ver" }
+          gh release upload $env:TAG out/PCAudit.exe "out/PCAudit-$ver-win.zip" out/SHA256SUMS.txt --clobber --repo $env:GITHUB_REPOSITORY
