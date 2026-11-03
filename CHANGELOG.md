@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.5 (not released yet)
+- Renamed from PC Audit to PCDoc: `PCDoc.exe`, `Invoke-PCDoc.ps1`, `Documents\PCDoc reports`, `Downloads\PCDoc`. Existing PC Audit folders are moved to the new names on first run, so history, dismissals and downloads carry over.
+- MIT license.
+
 ## 0.4.4
 - "Pending file rename operations" no longer counts as a pending restart when it holds only temp-file cleanups, or when a program re-adds the same entries after every boot. The Windows page lists the files.
 

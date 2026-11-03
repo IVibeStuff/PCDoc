@@ -1,6 +1,6 @@
-// PC Audit - download / install actions started from the report's buttons.
+// PCDoc - download / install actions started from the report's buttons.
 // The report page (in WebView2) posts "prepare|<id>", "openfolder" or "openpath|<path>".
-// Each step runs Invoke-PCAuditAction.ps1 in-process; the app asks the user before anything is installed or opened.
+// Each step runs Invoke-PCDocAction.ps1 in-process; the app asks the user before anything is installed or opened.
 // C# 5 compatible.
 
 using System;
@@ -13,7 +13,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 
-namespace PCAudit
+namespace PCDoc
 {
     partial class MainForm
     {
@@ -55,7 +55,7 @@ namespace PCAudit
         {
             downloadsFolder = ReadDownloadsFolder();
             actLabel.ForeColor = Theme.Muted;
-            actLabel.Text = "Downloads are saved to " + (downloadsFolder ?? "your Downloads folder\\PC Audit") + ". Nothing is installed without asking you first.";
+            actLabel.Text = "Downloads are saved to " + (downloadsFolder ?? "your Downloads folder\\PCDoc") + ". Nothing is installed without asking you first.";
             actBar.Visible = false; actBar.Active = false;
             LayoutStrip();
         }
@@ -69,7 +69,7 @@ namespace PCAudit
                 if (m.Success) return Regex.Unescape(m.Groups[1].Value);
             }
             catch { }
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "PC Audit", Environment.MachineName);
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "PCDoc", Environment.MachineName);
         }
 
         void OpenDownloadsFolder(string sub)
@@ -78,7 +78,7 @@ namespace PCAudit
             string target = root;
             if (!string.IsNullOrEmpty(sub))
             {
-                // Only folders inside the PC Audit downloads folder can be opened from the page
+                // Only folders inside the PCDoc downloads folder can be opened from the page
                 try
                 {
                     string full = Path.GetFullPath(sub), r = Path.GetFullPath(Path.GetDirectoryName(root.TrimEnd('\\', '/')));
@@ -120,7 +120,7 @@ namespace PCAudit
         }
 
         // ------------------------------------------------------------------ dismissed items
-        // Kept per PC next to the report folders: Documents\PC Audit reports\<PC>.dismissed.jsonl, one JSON object per line.
+        // Kept per PC next to the report folders: Documents\PCDoc reports\<PC>.dismissed.jsonl, one JSON object per line.
         // The next scan reads it; the open report updates at once.
         string DismissalsFile()
         {
@@ -213,18 +213,18 @@ namespace PCAudit
             pars.Add(new KeyValuePair<string, object>("Stage", stage));
             try
             {
-                if (ScriptHost.IsAvailable() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PCAUDIT_TEST_CMD")))
+                if (ScriptHost.IsAvailable() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PCDOC_TEST_CMD")))
                 {
                     actHost = new ScriptHost();
-                    actHost.Start(Program.ReadResourceText("Invoke-PCAuditAction.ps1"), pars, Path.Combine(Program.AppDir, "app"));
+                    actHost.Start(Program.ReadResourceText("Invoke-PCDocAction.ps1"), pars, Path.Combine(Program.AppDir, "app"));
                 }
                 else
                 {
-                    string script = Program.Extract("Invoke-PCAuditAction.ps1", Path.Combine("app", "Invoke-PCAuditAction.ps1"));
+                    string script = Program.Extract("Invoke-PCDocAction.ps1", Path.Combine("app", "Invoke-PCDocAction.ps1"));
                     StringBuilder a = new StringBuilder("-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File \"" + script + "\"");
                     foreach (KeyValuePair<string, object> kv in pars) a.Append(" -" + kv.Key + " \"" + kv.Value + "\"");
-                    string exe = Environment.GetEnvironmentVariable("PCAUDIT_TEST_ACTION_CMD");
-                    string args = exe != null ? (Environment.GetEnvironmentVariable("PCAUDIT_TEST_ACTION_ARGS") ?? "") + " " + id + " " + stage : a.ToString();
+                    string exe = Environment.GetEnvironmentVariable("PCDOC_TEST_ACTION_CMD");
+                    string args = exe != null ? (Environment.GetEnvironmentVariable("PCDOC_TEST_ACTION_ARGS") ?? "") + " " + id + " " + stage : a.ToString();
                     ProcessStartInfo psi = new ProcessStartInfo(exe ?? Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe"), args)
                     { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
                     actProc = new Process { StartInfo = psi, EnableRaisingEvents = true };
@@ -288,7 +288,7 @@ namespace PCAudit
                     Status(id, "ready", "Downloaded and verified (" + signedBy + "). Waiting for your OK to install.", -1);
                     string body = title + "\n\n" +
                         (R("FromVersion") != null ? "Installed now:  " + R("FromVersion") + "\nNew version:   " + R("ToVersion") + "\n\n" : "") +
-                        "The package is " + signedBy + ". PC Audit will create a System Restore point first, then install it with Windows' own driver installer (pnputil).\n\n" +
+                        "The package is " + signedBy + ". PCDoc will create a System Restore point first, then install it with Windows' own driver installer (pnputil).\n\n" +
                         "If something goes wrong, roll back in Device Manager (device > Properties > Driver > Roll Back Driver) or use the restore point.";
                     int r = Dialog.Show(this, "Install this driver?", body, "Install", "Not now", "Show files");
                     if (r == 1) { RunAction(id, "Install"); return; }
@@ -346,7 +346,7 @@ namespace PCAudit
             int result = 0;
             using (Form f = new Form())
             {
-                f.Text = "PC Audit"; f.FormBorderStyle = FormBorderStyle.FixedDialog; f.MaximizeBox = false; f.MinimizeBox = false; f.ShowInTaskbar = false;
+                f.Text = "PCDoc"; f.FormBorderStyle = FormBorderStyle.FixedDialog; f.MaximizeBox = false; f.MinimizeBox = false; f.ShowInTaskbar = false;
                 f.StartPosition = FormStartPosition.CenterParent; f.BackColor = Theme.Panel; f.ForeColor = Theme.Text;
                 f.Font = Theme.F(Theme.TextFace, 9.75f); f.AutoScaleMode = AutoScaleMode.Dpi; f.AutoScaleDimensions = new SizeF(96f, 96f);
                 f.ClientSize = new Size(520, 100);

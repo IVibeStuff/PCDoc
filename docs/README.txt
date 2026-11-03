@@ -1,5 +1,7 @@
-PC Audit 0.4.4
-==============
+PCDoc
+=====
+
+(Called "PC Audit" up to version 0.4.4.)
 
 A read-only health scan for Windows 10 and 11 PCs. It checks hardware, drivers, BIOS,
 Windows Update history, event logs and crashes. It compares installed versions with the
@@ -9,12 +11,12 @@ New in 0.4.0: download buttons in the report, and a Change history tab.
 
 How to run
 ----------
-1. Copy PCAudit.exe anywhere (a USB stick is fine) and double-click it.
+1. Copy PCDoc.exe anywhere (a USB stick is fine) and double-click it.
 2. Answer "Yes" to the Windows administrator prompt.
 3. Watch the progress (usually 2-5 minutes; the Windows Update and Catalog checks take longest).
 4. The report opens in the same window when the scan is done.
 
-Reports are saved to:  Documents\PC Audit reports\<PC name>_<date>\
+Reports are saved to:  Documents\PCDoc reports\<PC name>_<date>\
 Each folder has the HTML report, audit.json (raw data) and scan-log.txt.
 
 
@@ -42,7 +44,7 @@ Dismiss old problems. Findings, event log rows, failed updates, blue screens and
 driver installs have a Dismiss button. A dismissed item stays hidden until it happens
 again after you dismissed it, then comes back marked "Happened again". Dismissed items
 are listed in a folded list with a Restore button. The list is kept per PC in
-Documents\PC Audit reports\<PC name>.dismissed.jsonl.
+Documents\PCDoc reports\<PC name>.dismissed.jsonl.
 
 Re-logged crash reports are counted once. Windows can log the same GPU hang or crash
 report many times (a stuck error-report queue re-logs it at every boot). Each dump is
@@ -65,32 +67,32 @@ On the Updates page, newer drivers have buttons:
   Download                    BIOS files (download only)
 
 What happens when you click one:
-1. The file is downloaded to  Downloads\PC Audit\<PC name>\<date>\  and kept there
+1. The file is downloaded to  Downloads\PCDoc\<PC name>\<date>\  and kept there
    so you can review it later. Only the makers' and Microsoft's own download
    servers are allowed.
 2. Its digital signature is checked. Catalog drivers must be signed by Microsoft,
    NVIDIA drivers by NVIDIA, AMD drivers by AMD. Anything else is kept but never run.
-3. PC Audit asks you before going further:
+3. PCDoc asks you before going further:
    - Drivers: it creates a System Restore point, then installs with Windows' own
      driver installer (pnputil). Roll back in Device Manager if needed.
    - Installers: it opens the maker's installer, which asks its own questions.
    - BIOS: flash it from the BIOS itself (Instant Flash, M-Flash, EZ Flash, Q-Flash).
 One download runs at a time. Every step is written to
-Downloads\PC Audit\<PC name>\downloads.log.
+Downloads\PCDoc\<PC name>\downloads.log.
 
 
 Change history (new in 0.4.0)
 -----------------------------
 Each scan compares itself with the previous scan of the same PC and shows what changed:
 driver updates, BIOS and Windows versions, devices added or removed, problems fixed.
-Changes are marked "PC Audit" when they were installed through PC Audit or match what
-PC Audit recommended last time. Windows' own driver install record is listed too.
-Keep the report folders in Documents\PC Audit reports for this to work.
+Changes are marked "PCDoc" when they were installed through PCDoc or match what
+PCDoc recommended last time. Windows' own driver install record is listed too.
+Keep the report folders in Documents\PCDoc reports for this to work.
 
 
 If your antivirus still complains
 ---------------------------------
-PCAudit.exe is not code-signed yet, so some products judge it on reputation alone:
+PCDoc.exe is not code-signed yet, so some products judge it on reputation alone:
 - Windows SmartScreen: click "More info", then "Run anyway".
 - Microsoft Defender or another product: report it as a false positive. Defender:
   https://www.microsoft.com/wdsi/filesubmission (choose "Incorrectly detected as malware").
@@ -99,10 +101,10 @@ PCAudit.exe is not code-signed yet, so some products judge it on reputation alon
 
 Options (run from a command prompt)
 -----------------------------------
-  PCAudit.exe -Offline            skip all online lookups
-  PCAudit.exe -SkipCatalog        skip the Microsoft Update Catalog check (saves 1-2 minutes)
-  PCAudit.exe -NoWindowsUpdate    don't ask Windows Update what it is offering
-  PCAudit.exe -EventDays 60       scan 60 days of event logs instead of 30
+  PCDoc.exe -Offline            skip all online lookups
+  PCDoc.exe -SkipCatalog        skip the Microsoft Update Catalog check (saves 1-2 minutes)
+  PCDoc.exe -NoWindowsUpdate    don't ask Windows Update what it is offering
+  PCDoc.exe -EventDays 60       scan 60 days of event logs instead of 30
 
 
 Requirements
@@ -116,7 +118,7 @@ Requirements
 
 Files the app keeps
 -------------------
-%LOCALAPPDATA%\PCAudit\0.4.4\  holds the report template, the WebView2 viewer files and the
+%LOCALAPPDATA%\PCDoc\<version>\  holds the report template, the WebView2 viewer files and the
 viewer's cache. You can delete this folder at any time.
 
 The same scan is available as plain PowerShell scripts in the separate "scripts" download.

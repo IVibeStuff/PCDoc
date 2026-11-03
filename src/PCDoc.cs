@@ -1,5 +1,5 @@
-// PC Audit - Windows front end for the PC health scan (read-only) and the download/install helper.
-// Runs Invoke-PCAudit.ps1 hidden, shows progress, then shows the report in an embedded WebView2.
+// PCDoc - Windows front end for the PC health scan (read-only) and the download/install helper.
+// Runs Invoke-PCDoc.ps1 hidden, shows progress, then shows the report in an embedded WebView2.
 // Target: .NET Framework 4.8 (built in to Windows 10/11). Single EXE: script, template and WebView2 files are embedded.
 
 using System;
@@ -18,29 +18,39 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("PC Audit")]
+[assembly: AssemblyTitle("PCDoc")]
 [assembly: AssemblyDescription("Read-only PC health, driver and update scan")]
-[assembly: AssemblyProduct("PC Audit")]
-[assembly: AssemblyVersion("0.4.4.0")]
-[assembly: AssemblyFileVersion("0.4.4.0")]
+[assembly: AssemblyProduct("PCDoc")]
+[assembly: AssemblyVersion("0.4.5.0")]
+[assembly: AssemblyFileVersion("0.4.5.0")]
 
-namespace PCAudit
+namespace PCDoc
 {
     static class Program
     {
-        public const string Version = "0.4.4";
+        public const string Version = "0.4.5";
         public static string AppDir;
 
         [STAThread]
         static void Main(string[] args)
         {
-            AppDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PCAudit", Version);
+            AppDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PCDoc", Version);
             Directory.CreateDirectory(AppDir);
+            // PCDoc was called "PC Audit" up to 0.4.4: carry the reports (history, dismissals) and downloads over
+            string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            MoveIfNew(Path.Combine(docs, "PC Audit reports"), Path.Combine(docs, "PCDoc reports"));
+            MoveIfNew(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "PC Audit"),
+                      Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "PCDoc"));
             AppDomain.CurrentDomain.AssemblyResolve += ResolveEmbedded;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm(args));
             Environment.Exit(0);   // also ends any PowerShell pipeline thread still winding down
+        }
+
+        static void MoveIfNew(string from, string to)
+        {
+            try { if (Directory.Exists(from) && !Directory.Exists(to)) Directory.Move(from, to); } catch { }
         }
 
         public static string ReadResourceText(string resName)
@@ -282,7 +292,7 @@ namespace PCAudit
         public MainForm(string[] args)
         {
             passArgs = args.Where(a => Regex.IsMatch(a, @"^-?[A-Za-z0-9_\.]+$")).ToArray();
-            Text = "PC Audit";
+            Text = "PCDoc";
             try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
             BackColor = Theme.Bg; ForeColor = Theme.Text;
             Font = Theme.F(Theme.TextFace, 9.75f);
@@ -310,7 +320,7 @@ namespace PCAudit
             header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Theme.Rail };
             header.Paint += (s, e) => { using (Pen p = new Pen(Theme.LineSoft)) e.Graphics.DrawLine(p, 0, header.Height - 1, header.Width, header.Height - 1); };
             Logo logo = new Logo { Size = new Size(34, 34), Location = new Point(24, 19), BackColor = Theme.Rail };
-            lblTitle = new Label { Text = "PC Audit", AutoSize = true, Location = new Point(68, 14), Font = Theme.F(Theme.Display, 15f, FontStyle.Bold), ForeColor = Theme.Text, BackColor = Theme.Rail };
+            lblTitle = new Label { Text = "PCDoc", AutoSize = true, Location = new Point(68, 14), Font = Theme.F(Theme.Display, 15f, FontStyle.Bold), ForeColor = Theme.Text, BackColor = Theme.Rail };
             lblSub = new Label { Text = "Health scan of " + Environment.MachineName + ". The scan only reads; updates are installed only when you ask.", AutoSize = true, Location = new Point(70, 44), ForeColor = Theme.Muted, BackColor = Theme.Rail };
             header.Controls.AddRange(new Control[] { logo, lblTitle, lblSub });
 
@@ -399,10 +409,10 @@ namespace PCAudit
             catch (Exception ex) { ShowError("Could not prepare the report template in " + Program.AppDir + ".\n\n" + ex.Message); return; }
 
             string docs = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            outDir = Path.Combine(docs, "PC Audit reports", Environment.MachineName + "_" + DateTime.Now.ToString("yyyy-MM-dd_HHmmss"));
-            AppendLog("PC Audit " + Program.Version + " - reports folder: " + outDir, Theme.Faint);
+            outDir = Path.Combine(docs, "PCDoc reports", Environment.MachineName + "_" + DateTime.Now.ToString("yyyy-MM-dd_HHmmss"));
+            AppendLog("PCDoc " + Program.Version + " - reports folder: " + outDir, Theme.Faint);
 
-            // Script parameters: fixed ones plus anything passed on the PCAudit.exe command line (-Name [value])
+            // Script parameters: fixed ones plus anything passed on the PCDoc.exe command line (-Name [value])
             List<KeyValuePair<string, object>> pars = new List<KeyValuePair<string, object>>();
             pars.Add(new KeyValuePair<string, object>("NoOpen", null));
             pars.Add(new KeyValuePair<string, object>("OutputDir", outDir));
@@ -419,13 +429,13 @@ namespace PCAudit
             }
             if (!noWu) pars.Add(new KeyValuePair<string, object>("CheckWindowsUpdate", null));
 
-            string testCmd = Environment.GetEnvironmentVariable("PCAUDIT_TEST_CMD");
+            string testCmd = Environment.GetEnvironmentVariable("PCDOC_TEST_CMD");
             if (string.IsNullOrEmpty(testCmd) && ScriptHost.IsAvailable())
             {
                 // Normal path: run the scan inside this process with Windows' own PowerShell engine.
                 try
                 {
-                    string scriptText = Program.ReadResourceText("Invoke-PCAudit.ps1");
+                    string scriptText = Program.ReadResourceText("Invoke-PCDoc.ps1");
                     host = new ScriptHost();
                     host.Start(scriptText, pars, Path.Combine(Program.AppDir, "app"));
                 }
@@ -436,10 +446,10 @@ namespace PCAudit
 
             // Fallback (or test hook): run as a separate process
             ProcessStartInfo psi;
-            if (!string.IsNullOrEmpty(testCmd)) psi = new ProcessStartInfo(testCmd, Environment.GetEnvironmentVariable("PCAUDIT_TEST_ARGS") ?? "");
+            if (!string.IsNullOrEmpty(testCmd)) psi = new ProcessStartInfo(testCmd, Environment.GetEnvironmentVariable("PCDOC_TEST_ARGS") ?? "");
             else
             {
-                string script = Program.Extract("Invoke-PCAudit.ps1", Path.Combine("app", "Invoke-PCAudit.ps1"));
+                string script = Program.Extract("Invoke-PCDoc.ps1", Path.Combine("app", "Invoke-PCDoc.ps1"));
                 StringBuilder a = new StringBuilder("-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File \"" + script + "\"");
                 foreach (KeyValuePair<string, object> kv in pars) { a.Append(" -" + kv.Key); if (kv.Value != null) a.Append(" \"" + kv.Value + "\""); }
                 psi = new ProcessStartInfo(Path.Combine(Environment.SystemDirectory, @"WindowsPowerShell\v1.0\powershell.exe"), a.ToString());
@@ -610,7 +620,7 @@ namespace PCAudit
             outDir = Path.GetDirectoryName(reportPath);
             ShowView(resultView);
             ResetActionStrip();
-            string testPost = Environment.GetEnvironmentVariable("PCAUDIT_TEST_POST");   // test hook: simulate a click in the report
+            string testPost = Environment.GetEnvironmentVariable("PCDOC_TEST_POST");   // test hook: simulate a click in the report
             if (!string.IsNullOrEmpty(testPost)) { Timer t = new Timer { Interval = 1500 }; t.Tick += (s, e) => { t.Stop(); OnWebMessage(testPost); }; t.Start(); }
             ShowInWebView();
         }

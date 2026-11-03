@@ -1,26 +1,26 @@
-# PC Audit 0.4.4: scripts
+# PCDoc 0.4.4: scripts
 
-A read-only health scan for Windows 10/11 troubleshooting. It collects hardware, driver, Windows Update and log information and produces one HTML report. **The scan installs and changes nothing on the PC.** Downloading and installing updates is a separate helper (`Invoke-PCAuditAction.ps1`) that the PC Audit app runs only when you click a button and confirm.
+A read-only health scan for Windows 10/11 troubleshooting. It collects hardware, driver, Windows Update and log information and produces one HTML report. **The scan installs and changes nothing on the PC.** Downloading and installing updates is a separate helper (`Invoke-PCDocAction.ps1`) that the PCDoc app runs only when you click a button and confirm.
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `Invoke-PCAudit.ps1` | The scanner (PowerShell 5.1, built into Windows 10/11 — nothing to install) |
+| `Invoke-PCDoc.ps1` | The scanner (PowerShell 5.1, built into Windows 10/11 — nothing to install) |
 | `report-template.html` | Report layout; must sit next to the script |
-| `Invoke-PCAuditAction.ps1` | Download and install helper used by the app's buttons (see below). Not needed for a scan |
-| `Run-PCAudit.cmd` | Double-click launcher: asks for admin rights, runs the full scan including the Windows Update check |
+| `Invoke-PCDocAction.ps1` | Download and install helper used by the app's buttons (see below). Not needed for a scan |
+| `Run-PCDoc.cmd` | Double-click launcher: asks for admin rights, runs the full scan including the Windows Update check |
 
 Copy the folder to a USB stick and run it from there.
 
 ## Running
 
-**Easiest:** double-click `Run-PCAudit.cmd` and accept the admin prompt.
+**Easiest:** double-click `Run-PCDoc.cmd` and accept the admin prompt.
 
 **Manually** (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\Invoke-PCAudit.ps1 -CheckWindowsUpdate
+powershell -ExecutionPolicy Bypass -File .\Invoke-PCDoc.ps1 -CheckWindowsUpdate
 ```
 
 Options:
@@ -30,12 +30,12 @@ Options:
 | `-CheckWindowsUpdate` | off | Ask Windows Update what is currently offered (software and drivers). Read-only search; needs internet; 1–5 min |
 | `-EventDays 60` | 30 | How many days of event logs to scan |
 | `-DriverAgeYears 2` | 3 | Flag third-party drivers older than this |
-| `-OutputDir D:\Reports` | Desktop\PCAudit\<PC>_<time> | Where to write the report |
+| `-OutputDir D:\Reports` | Desktop\PCDoc\<PC>_<time> | Where to write the report |
 | `-SkipCatalog` | off | Skip the per-device Microsoft Update Catalog check (saves 1–2 minutes) |
 | `-Offline` | off | Skip the online lookups (manufacturer BIOS/driver lists, GPU driver versions) |
 | `-NoOpen` | off | Don't open the report when finished |
 
-Output: `PCAudit_<computer>.html` (open in any browser, works offline) plus `audit.json` (raw data for the Phase 2 online checker).
+Output: `PCDoc_<computer>.html` (open in any browser, works offline) plus `audit.json` (raw data for the Phase 2 online checker).
 
 Run it as administrator. Without admin rights, CBS.log, disk wear/temperature, Secure Boot, TPM and dump-file listings are missing; the report says what was skipped.
 
@@ -92,15 +92,15 @@ If a site blocks the request (ASRock uses bot protection), the row shows the dir
 Every scan compares itself with the previous scan of the same PC (the newest `<PC>_<date>` folder next to its own output folder that has an `audit.json`). The **Change history** tab lists:
 
 - **Since the last scan**: driver updates and rollbacks, BIOS and Windows build changes, devices added or removed, problems fixed or new. Each change says who made it, checked in this order:
-  1. *Installed through PC Audit*: recorded in the downloads log by the app's buttons.
-  2. *Recommended by PC Audit*: the new version is one the previous scan recommended (Catalog, board maker or graphics maker).
+  1. *Installed through PCDoc*: recorded in the downloads log by the app's buttons.
+  2. *Recommended by PCDoc*: the new version is one the previous scan recommended (Catalog, board maker or graphics maker).
   3. *Windows Update*: matches a successful driver entry in the Windows Update history.
   4. Windows' own install log (`setupapi.dev.log`): *Windows (device detected)*, *Device Manager*, *Installer or pnputil*.
-  5. Otherwise *Other (not recommended by PC Audit)*.
-- **Downloads through PC Audit**: everything the buttons downloaded, checked, installed or opened.
+  5. Otherwise *Other (not recommended by PCDoc)*.
+- **Downloads through PCDoc**: everything the buttons downloaded, checked, installed or opened.
 - **Driver installs recorded by Windows**: the full successful-install timeline from `setupapi.dev.log`; installs before the last scan are folded away.
 
-Keep the report folders together (the app uses `Documents\PC Audit reports`) so the history works.
+Keep the report folders together (the app uses `Documents\PCDoc reports`) so the history works.
 
 ## Dismissing old problems
 
@@ -108,20 +108,20 @@ Fixed a problem but the report keeps showing its old events? In the app, finding
 
 **Show issues from: All / 30 days / 7 days / 1 day** (bottom of the side menu) hides every dated issue (events, blue screens, failed updates, failed driver installs) whose last occurrence is older than that, counted back from the scan. Problems that exist right now (a device with an error, an update available, Windows out of support) always show. Hidden rows are listed in the same folded list. The choice is remembered per PC.
 
-Dismissals are kept per PC in `Documents\PC Audit reports\<PC>.dismissed.jsonl` (one JSON line per change; the newest line for each item wins, and a `window` line holds the time-window choice), so they apply to every later scan of that PC.
+Dismissals are kept per PC in `Documents\PCDoc reports\<PC>.dismissed.jsonl` (one JSON line per change; the newest line for each item wins, and a `window` line holds the time-window choice), so they apply to every later scan of that PC.
 
-**Re-logged crash reports.** Windows Error Reporting logs Event 1001 when it *processes* a report, not when the problem happened, and a stuck report queue re-logs the same dumps at every boot. PC Audit now counts each dump file or report ID once and dates it by the dump's own timestamp, so thousands of entries become the handful of real occurrences ("3, logged 120 times").
+**Re-logged crash reports.** Windows Error Reporting logs Event 1001 when it *processes* a report, not when the problem happened, and a stuck report queue re-logs the same dumps at every boot. PCDoc now counts each dump file or report ID once and dates it by the dump's own timestamp, so thousands of entries become the handful of real occurrences ("3, logged 120 times").
 
 ## Download and install helper
 
-`Invoke-PCAuditAction.ps1 -AuditJson <scan>\audit.json -ActionId a3 -Stage Prepare|Install|Launch` runs one of the scan's suggested actions (listed in `audit.json` under `Actions`). The app runs it for you; each stage is separate so you confirm before anything changes.
+`Invoke-PCDocAction.ps1 -AuditJson <scan>\audit.json -ActionId a3 -Stage Prepare|Install|Launch` runs one of the scan's suggested actions (listed in `audit.json` under `Actions`). The app runs it for you; each stage is separate so you confirm before anything changes.
 
-- **Prepare** downloads to `Downloads\PC Audit\<PC>\<date>\<update>\`, from an allow-list of maker and Microsoft download hosts (HTTPS only, redirects checked), then checks the digital signature. Catalog `.cab` files are unpacked and their catalog must be signed by Microsoft. NVIDIA and AMD installers must be signed by NVIDIA or AMD. Anything unsigned or signed by someone else is kept for inspection but never run.
+- **Prepare** downloads to `Downloads\PCDoc\<PC>\<date>\<update>\`, from an allow-list of maker and Microsoft download hosts (HTTPS only, redirects checked), then checks the digital signature. Catalog `.cab` files are unpacked and their catalog must be signed by Microsoft. NVIDIA and AMD installers must be signed by NVIDIA or AMD. Anything unsigned or signed by someone else is kept for inspection but never run.
 - **Install** (driver packages): creates a System Restore point, then installs with Windows' `pnputil /add-driver … /install`, and reads back the device's driver version.
 - **Launch** (maker installers): re-checks the signature and opens the maker's own installer, which asks its own questions.
 - BIOS files are only downloaded. Flash them from the BIOS (Instant Flash, M-Flash, EZ Flash, Q-Flash).
 
-Every step is logged to `Downloads\PC Audit\<PC>\downloads.log` (one JSON object per line), which the next scan uses for the Change history.
+Every step is logged to `Downloads\PCDoc\<PC>\downloads.log` (one JSON object per line), which the next scan uses for the Change history.
 
 ## Roadmap
 

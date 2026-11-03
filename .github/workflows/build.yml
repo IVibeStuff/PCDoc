@@ -1,4 +1,4 @@
-name: Build PCAudit.exe
+name: Build PCDoc.exe
 
 # Builds the EXE on a GitHub-hosted Windows machine with the C# compiler that ships with Windows.
 # - Every push to main and every pull request: build, keep the EXE as a workflow artifact.
@@ -36,15 +36,15 @@ jobs:
         id: pkg
         shell: pwsh
         run: |
-          $ver = (Select-String -Path src/PCAudit.cs -Pattern 'public const string Version = "([\d.]+)"').Matches[0].Groups[1].Value
-          $exeVer = (Get-Item dist/PCAudit.exe).VersionInfo.FileVersion
-          Write-Host "PC Audit $ver (file version $exeVer)"
-          $dir = "out/PCAudit-$ver"
+          $ver = (Select-String -Path src/PCDoc.cs -Pattern 'public const string Version = "([\d.]+)"').Matches[0].Groups[1].Value
+          $exeVer = (Get-Item dist/PCDoc.exe).VersionInfo.FileVersion
+          Write-Host "PCDoc $ver (file version $exeVer)"
+          $dir = "out/PCDoc-$ver"
           New-Item -ItemType Directory -Force $dir | Out-Null
-          Copy-Item dist/PCAudit.exe $dir/
+          Copy-Item dist/PCDoc.exe $dir/
           Copy-Item docs/README.txt $dir/
-          Copy-Item dist/PCAudit.exe out/PCAudit.exe
-          Compress-Archive -Path $dir -DestinationPath "out/PCAudit-$ver-win.zip" -Force
+          Copy-Item dist/PCDoc.exe out/PCDoc.exe
+          Compress-Archive -Path $dir -DestinationPath "out/PCDoc-$ver-win.zip" -Force
           Remove-Item -Recurse $dir
           Get-ChildItem out -File | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } | Set-Content out/SHA256SUMS.txt
           Get-Content out/SHA256SUMS.txt
@@ -54,11 +54,11 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: out/PCAudit.exe
+          subject-path: out/PCDoc.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PCAudit-${{ steps.pkg.outputs.version }}
+          name: PCDoc-${{ steps.pkg.outputs.version }}
           path: out/
 
       - name: Attach to release
@@ -70,4 +70,4 @@ jobs:
         run: |
           $ver = '${{ steps.pkg.outputs.version }}'
           if ($env:TAG.TrimStart('v') -ne $ver) { Write-Warning "Release tag $env:TAG does not match the source version $ver" }
-          gh release upload $env:TAG out/PCAudit.exe "out/PCAudit-$ver-win.zip" out/SHA256SUMS.txt --clobber --repo $env:GITHUB_REPOSITORY
+          gh release upload $env:TAG out/PCDoc.exe "out/PCDoc-$ver-win.zip" out/SHA256SUMS.txt --clobber --repo $env:GITHUB_REPOSITORY

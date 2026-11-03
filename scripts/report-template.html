@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PC Audit</title>
+<title>PCDoc</title>
 <style>
 :root{
   --bg:#141A23; --rail:#0F141B; --panel:#19212C; --panel-2:#1F2935; --sunk:#151C25;
@@ -246,7 +246,7 @@ td .muted{font-size:12.5px}
 <div class="app">
   <aside class="rail">
     <div class="ident">
-      <div class="mark"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" stroke="currentColor"/><rect x="6" y="6" width="4" height="4" rx=".5" fill="currentColor"/><path d="M6 1v2.5M10 1v2.5M6 12.5V15M10 12.5V15M1 6h2.5M1 10h2.5M12.5 6H15M12.5 10H15" stroke="currentColor" stroke-linecap="round"/></svg>PC Audit report</div>
+      <div class="mark"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" stroke="currentColor"/><rect x="6" y="6" width="4" height="4" rx=".5" fill="currentColor"/><path d="M6 1v2.5M10 1v2.5M6 12.5V15M10 12.5V15M1 6h2.5M1 10h2.5M12.5 6H15M12.5 10H15" stroke="currentColor" stroke-linecap="round"/></svg>PCDoc report</div>
       <div class="pc" id="pcname"></div>
       <div class="model" id="pcmodel"></div>
     </div>
@@ -331,7 +331,7 @@ function filterBox(placeholder, onChange, extra = '') {
 const textMatch = (r, q) => !q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase());
 
 /* ---------- download actions ----------
-   Inside the PC Audit app the page talks to the app over WebView2 messages:
+   Inside the PCDoc app the page talks to the app over WebView2 messages:
    page -> app: "prepare|<id>", "openfolder", "openpath|<path>"
    app -> page: "status|<id>|<state>|<text>|<percent>"   (state: working, ready, done, manual, blocked, error, idle)
    Opened as a plain file in a browser, the buttons are ordinary download links. */
@@ -347,7 +347,7 @@ function actStatusHtml(id) {
 function actBtn(obj, fallbackUrl, fallbackLabel) {
   const id = obj && obj.ActionId, a = id && ACTS[id];
   if (!a) return fallbackUrl ? `<a href="${esc(fallbackUrl)}" target="_blank" rel="noopener">${esc(fallbackLabel || 'Download')}</a>` : '';
-  if (!HOST) return `<a href="${esc(a.Url)}" target="_blank" rel="noopener" title="Opened in the PC Audit app, this downloads, checks and sets up the file for you">${esc(fallbackLabel || 'Download')}</a>`;
+  if (!HOST) return `<a href="${esc(a.Url)}" target="_blank" rel="noopener" title="Opened in the PCDoc app, this downloads, checks and sets up the file for you">${esc(fallbackLabel || 'Download')}</a>`;
   const st = actState[id] || {};
   const busy = st.state === 'working';
   return `<span class="actwrap"><button type="button" class="act" data-act="${esc(id)}"${busy ? ' disabled' : ''} title="${esc(a.Url)}">${esc(ACT_LABEL[a.Kind] || 'Download')}</button><span class="actst ${esc(st.cls || '')}" data-st="${esc(id)}">${actStatusHtml(id)}</span></span>`;
@@ -447,11 +447,11 @@ function derive() {
 derive();
 
 const M = A.Meta || {};
-document.title = `PC Audit: ${M.Computer || ''}`;
+document.title = `PCDoc: ${M.Computer || ''}`;
 $('#pcname').textContent = M.Computer || 'This PC';
 $('#pcmodel').textContent = [S.Vendor, S.FriendlyModel || S.Model].filter(Boolean).join(' ');
 $('#railfoot').innerHTML = `Scanned ${esc(String(M.Started || '').replace('T', ' ').slice(0, 16))}<br>${esc(W.Product || '')} ${esc(W.Version || '')}<br>` +
-  (M.IsAdmin ? 'Run as administrator' : '<span class="warn">Not run as administrator: some data missing</span>') + `<br>PC Audit ${esc(M.Version || '')}`;
+  (M.IsAdmin ? 'Run as administrator' : '<span class="warn">Not run as administrator: some data missing</span>') + `<br>PCDoc ${esc(M.Version || '')}`;
 
 const sevLevel = list => list.some(x => x === 'high') ? 'high' : list.some(x => x === 'medium') ? 'medium' : 'ok';
 function makeSections() { sections = [
@@ -459,7 +459,7 @@ function makeSections() { sections = [
     count: findings.filter(f => f.Severity === 'high' || f.Severity === 'medium').length, level: sevLevel(findings.map(f => f.Severity)), render: renderSummary },
   { id: 'updates', group: 'Overview', label: 'Updates', title: 'Updates', desc: "Installed versions compared with the manufacturers' latest BIOS and drivers and with the Microsoft Update Catalog.",
     count: updateCount(), level: !A.Online ? 'info' : updateCount() ? 'medium' : 'ok', render: renderUpdates },
-  { id: 'history', group: 'Overview', label: 'Change history', title: 'Change history', desc: 'What changed since the last scan of this PC, what PC Audit recommended or installed, and every driver install Windows recorded.',
+  { id: 'history', group: 'Overview', label: 'Change history', title: 'Change history', desc: 'What changed since the last scan of this PC, what PCDoc recommended or installed, and every driver install Windows recorded.',
     count: arr(HI.Changes).length, level: arr(HI.Changes).some(c => c.Kind === 'New problem') ? 'medium' : arr(HI.Changes).length ? 'info' : null, render: renderHistory },
   { id: 'system', group: 'Hardware', label: 'System', title: 'System', desc: 'Motherboard, firmware, processor, memory, graphics and storage.', render: renderSystem },
   { id: 'devices', group: 'Hardware', label: 'Drivers & devices', title: 'Drivers & devices', desc: 'Every device Windows knows about, with its driver and where to find updates.',
@@ -544,7 +544,7 @@ build();
 show((location.hash || '#summary').slice(1));
 function rebuild() { const y = window.scrollY, id = current; build(); show(id); window.scrollTo(0, y); }
 
-// Dismiss / restore, inside the PC Audit app (the app keeps the list for this PC)
+// Dismiss / restore, inside the PCDoc app (the app keeps the list for this PC)
 document.addEventListener('click', e => {
   const d = e.target.closest('[data-dis]'), r = e.target.closest('[data-restore]');
   if (!HOST || !(d || r)) return;
@@ -596,7 +596,7 @@ function renderSummary(el) {
   if (HI.PreviousScan) {
     const ch = arr(HI.Changes), by = ch.filter(c => c.ByPcAudit).length, np = ch.filter(c => c.Kind === 'New problem').length;
     v.push({ lv: np ? 'medium' : ch.length ? 'info' : 'ok', topic: 'Changes', go: 'history',
-      text: ch.length ? `${ch.length} change${ch.length > 1 ? 's' : ''} since the scan on ${String(HI.PreviousScan.Date || '').slice(0, 10)}${by ? `, ${by} through or recommended by PC Audit` : ''}${np ? `, ${np} new problem${np > 1 ? 's' : ''}` : ''}` : `Nothing changed since the scan on ${String(HI.PreviousScan.Date || '').slice(0, 10)}` });
+      text: ch.length ? `${ch.length} change${ch.length > 1 ? 's' : ''} since the scan on ${String(HI.PreviousScan.Date || '').slice(0, 10)}${by ? `, ${by} through or recommended by PCDoc` : ''}${np ? `, ${np} new problem${np > 1 ? 's' : ''}` : ''}` : `Nothing changed since the scan on ${String(HI.PreviousScan.Date || '').slice(0, 10)}` });
   }
   if (arr(W.PendingReboot).length) v.push({ lv: 'medium', topic: 'Restart', text: 'A restart is pending: restart before troubleshooting further', go: 'wu' });
 
@@ -628,7 +628,7 @@ function renderUpdates(el) {
   const link = (u, label) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(label)}</a>` : '';
   el.innerHTML = `
   <p class="note">Checked against the manufacturers' own download lists on ${esc(String(O.CheckedAt || '').replace('T', ' '))}. Nothing is downloaded or installed automatically.
-    ${HOST ? `Download buttons save files to your Downloads folder, check the digital signature, and then ask you before anything is installed. <a href="#" data-openfolder="">Open the downloads folder</a>` : 'Use the links to get files. Opened from the PC Audit app, these become buttons that download, check and set up each file.'}</p>
+    ${HOST ? `Download buttons save files to your Downloads folder, check the digital signature, and then ask you before anything is installed. <a href="#" data-openfolder="">Open the downloads folder</a>` : 'Use the links to get files. Opened from the PCDoc app, these become buttons that download, check and set up each file.'}</p>
   <div class="cols">
     <div class="panel"><h2>BIOS / firmware</h2>${kv({
       'Board': `${b.Vendor || ''} ${b.MatchedProduct || b.Model || ''}`,
@@ -697,11 +697,11 @@ function renderHistory(el) {
   const folder = HI.DownloadsFolder || '';
   el.innerHTML = `
   ${P ? `<p class="note">Compared with the previous scan of this PC on <b>${esc(String(P.Date || '').replace('T', ' ').slice(0, 16))}</b>. Each change says who made it:
-      <span class="badge pcabadge">PC Audit</span> marks changes installed through PC Audit or matching a version PC Audit recommended last time.</p>`
-    : `<div class="panel">This is the first scan of this PC that PC Audit can find. Next time, this page shows what changed in between and whether PC Audit's recommendations were followed.
-      Reports are kept in <span class="mono">Documents\\PC Audit reports</span>; keep them there so the history works.</div>`}
+      <span class="badge pcabadge">PCDoc</span> marks changes installed through PCDoc or matching a version PCDoc recommended last time.</p>`
+    : `<div class="panel">This is the first scan of this PC that PCDoc can find. Next time, this page shows what changed in between and whether PCDoc's recommendations were followed.
+      Reports are kept in <span class="mono">Documents\\PCDoc reports</span>; keep them there so the history works.</div>`}
   ${P ? '<h2>Since the last scan</h2><div id="t-chg"></div>' : ''}
-  <h2>Downloads through PC Audit</h2>
+  <h2>Downloads through PCDoc</h2>
   <div class="dlbar"><span>Files are kept in</span><span class="mono">${esc(folder)}</span>${HOST ? '<button type="button" class="act quiet" data-openfolder="">Open folder</button>' : ''}</div>
   <div id="t-dl"></div>
   <h2>Driver installs recorded by Windows</h2>
@@ -711,7 +711,7 @@ function renderHistory(el) {
     {k:'Kind',label:'Change',render:r => `<span class="badge b-${kindLv(r.Kind)}">${esc(r.Kind)}</span>`},
     {k:'Item',label:'Device / item'},
     {k:'From',label:'Was',cls:'mono'}, {k:'To',label:'Now',cls:'mono'},
-    {k:'Source',label:'Why / by',render:r => (r.ByPcAudit ? '<span class="badge pcabadge flag">PC Audit</span> ' : '') + `<span class="${r.ByPcAudit ? '' : 'muted'}">${esc(r.Source || '')}</span>`},
+    {k:'Source',label:'Why / by',render:r => (r.ByPcAudit ? '<span class="badge pcabadge flag">PCDoc</span> ' : '') + `<span class="${r.ByPcAudit ? '' : 'muted'}">${esc(r.Source || '')}</span>`},
     {k:'When',label:'When',cls:'nowrap',render:r => esc(String(r.When || '').replace('T', ' ').slice(0, 16))}
   ], { empty:'Nothing changed since the last scan.' });
   table($('#t-dl', el), dls, [
@@ -723,7 +723,7 @@ function renderHistory(el) {
         : `<span class="badge b-ok">${esc(r.Outcome || 'Done')}</span>`},
     {k:'Signer',label:'Signed by',render:r => esc(r.Signer || '')},
     {k:'Folder',label:'',render:r => r.Folder && HOST ? `<button type="button" class="act quiet" data-openfolder="${esc(r.Folder)}">Show files</button>` : ''}
-  ], { empty:'Nothing has been downloaded through PC Audit on this PC yet.' });
+  ], { empty:'Nothing has been downloaded through PCDoc on this PC yet.' });
   table($('#t-inst', el), inst, [
     {k:'Date',label:'When',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16))},
     {k:'Device',label:'Device'}, {k:'Version',label:'Driver version',cls:'mono'},

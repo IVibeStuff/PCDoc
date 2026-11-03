@@ -21,8 +21,8 @@ def res_entry(rtype, rid, data, lang=0x0409, flags=0x1030):
 
 MANIFEST = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
-  <assemblyIdentity version="{'.'.join(str(v) for v in VERSION)}" name="PCAudit.App" type="win32"/>
-  <description>PC Audit - read-only PC health and driver scan</description>
+  <assemblyIdentity version="{'.'.join(str(v) for v in VERSION)}" name="PCDoc.App" type="win32"/>
+  <description>PCDoc - read-only PC health and driver scan</description>
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security><requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
       <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
@@ -74,9 +74,9 @@ def version_info():
     ls = (VERSION[2] << 16) | VERSION[3]
     fixed = struct.pack('<13I', 0xFEEF04BD, 0x00010000, ms, ls, ms, ls, 0x3F, 0, 0x40004, 1, 0, 0, 0)
     strings = b''.join(vstring(k, v) for k, v in [
-        ('CompanyName', 'PC Audit'), ('FileDescription', 'PC Audit - PC health, driver and update scan'),
-        ('FileVersion', VSTR), ('InternalName', 'PCAudit'), ('LegalCopyright', 'Free to use'),
-        ('OriginalFilename', 'PCAudit.exe'), ('ProductName', 'PC Audit'), ('ProductVersion', VSTR)])
+        ('CompanyName', 'PCDoc'), ('FileDescription', 'PCDoc - PC health, driver and update scan'),
+        ('FileVersion', VSTR), ('InternalName', 'PCDoc'), ('LegalCopyright', 'Copyright (c) 2026 IVibeStuff. MIT License'),
+        ('OriginalFilename', 'PCDoc.exe'), ('ProductName', 'PCDoc'), ('ProductVersion', VSTR)])
     table = pad4(vblock('040904B0', b'', 0, 1, strings))
     sfi = pad4(vblock('StringFileInfo', b'', 0, 1, table))
     var = pad4(vblock('Translation', struct.pack('<HH', 0x0409, 0x04B0), 4, 0))

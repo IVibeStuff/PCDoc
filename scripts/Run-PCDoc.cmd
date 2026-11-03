@@ -1,5 +1,5 @@
 @echo off
-:: PC Audit launcher - asks for administrator rights, then runs the read-only scan
+:: PCDoc launcher - asks for administrator rights, then runs the read-only scan
 :: including a Windows Update check. Nothing is installed or changed.
 setlocal
 net session >nul 2>&1
@@ -9,6 +9,6 @@ if %errorlevel% neq 0 (
     exit /b
 )
 cd /d "%~dp0"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-PCAudit.ps1" -CheckWindowsUpdate
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Invoke-PCDoc.ps1" -CheckWindowsUpdate
 echo.
 pause

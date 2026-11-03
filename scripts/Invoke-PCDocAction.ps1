@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    PC Audit - download and install helper. Runs one action from a scan's audit.json.
+    PCDoc - download and install helper. Runs one action from a scan's audit.json.
 
 .DESCRIPTION
     Stages (the app asks the user before each stage that changes anything):
@@ -9,8 +9,8 @@
       Install  - driver packages (.inf): create a restore point, then install with Windows' pnputil.
       Launch   - installers (.exe): open the manufacturer's own setup program, so its own screens
                  do the installing.
-    Files go to <Downloads>\PC Audit\<computer>\<date>\ and every step is recorded in
-    <Downloads>\PC Audit\<computer>\downloads.log (one JSON object per line).
+    Files go to <Downloads>\PCDoc\<computer>\<date>\ and every step is recorded in
+    <Downloads>\PCDoc\<computer>\downloads.log (one JSON object per line).
 
     Output lines for the app:  "PROGRESS <percent> <text>", then "R:<Key>=<Value>" lines and a final "RESULT <json>".
 #>
@@ -68,6 +68,16 @@ function Get-UserDownloadsFolder {
     return $mine
 }
 
+# PCDoc was called "PC Audit" up to 0.4.4. Its folders are renamed on first use so history, downloads and
+# dismissals carry over. If a rename isn't possible (a file is open), the old folder keeps being used.
+function Get-RenamedFolder([string]$Parent, [string]$NewName, [string]$OldName) {
+    $new = Join-Path $Parent $NewName; $old = Join-Path $Parent $OldName
+    if (-not (Test-Path -LiteralPath $new) -and (Test-Path -LiteralPath $old)) {
+        try { Move-Item -LiteralPath $old -Destination $new -ErrorAction Stop } catch { return $old }
+    }
+    return $new
+}
+
 function Write-DownloadLog([string]$LogPath, $Entry) {
     $Entry | Add-Member -NotePropertyName Time -NotePropertyValue ((Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')) -Force
     $Entry | Add-Member -NotePropertyName Computer -NotePropertyValue $env:COMPUTERNAME -Force
@@ -122,7 +132,7 @@ try {
     $action = @($audit.Actions) | Where-Object { $_.Id -eq $ActionId } | Select-Object -First 1
     if (-not $action) { throw "Action $ActionId was not found in this scan." }
 
-    if (-not $DownloadRoot) { $DownloadRoot = Join-Path (Get-UserDownloadsFolder) 'PC Audit' }
+    if (-not $DownloadRoot) { $DownloadRoot = Get-RenamedFolder (Get-UserDownloadsFolder) 'PCDoc' 'PC Audit' }
     $pcRoot = Join-Path $DownloadRoot $env:COMPUTERNAME
     $dayDir = Join-Path $pcRoot (Get-Date -Format 'yyyy-MM-dd')
     New-Item -ItemType Directory -Force -Path $dayDir | Out-Null
@@ -178,7 +188,7 @@ try {
                 elseif ($setup) {
                     $launch = $setup.FullName; $sig = Test-Signature $launch $action.ExpectedSigner
                     if ($sig.Status -eq 'Valid') { $next = 'launch' }
-                    else { $next = 'manual'; $note = "The setup program ($($setup.Name)) has no valid digital signature, so PC Audit will not open it. Open the folder to inspect it." }
+                    else { $next = 'manual'; $note = "The setup program ($($setup.Name)) has no valid digital signature, so PCDoc will not open it. Open the folder to inspect it." }
                 }
                 elseif ($infs.Count) { $next = 'install' }
                 else { $next = 'manual'; $note = 'No installer or driver files were found. Open the folder to look.' }
@@ -206,7 +216,7 @@ try {
             $folder = if ($prep.Extracted) { $prep.Extracted } else { $prep.Folder }
             Out-Progress 10 'Creating a System Restore point'
             $rp = 'Created'
-            $rpName = "PC Audit: before $($action.Title)"; if ($rpName.Length -gt 60) { $rpName = $rpName.Substring(0, 60) }
+            $rpName = "PCDoc: before $($action.Title)"; if ($rpName.Length -gt 60) { $rpName = $rpName.Substring(0, 60) }
             try { Checkpoint-Computer -Description $rpName -RestorePointType MODIFY_SETTINGS -ErrorAction Stop }
             catch { $rp = 'Skipped: ' + $_.Exception.Message }
             Out-Progress 40 'Installing the driver with Windows (pnputil)'

@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    PC Audit - Phase 1: read-only hardware, driver, Windows Update and log health scan.
+    PCDoc - Phase 1: read-only hardware, driver, Windows Update and log health scan.
 
 .DESCRIPTION
     Collects (never changes) information about this PC:
@@ -14,7 +14,7 @@
     Writes audit.json and an HTML report to the output folder.
 
 .PARAMETER OutputDir
-    Where to write the report. Default: Desktop\PCAudit\<computer>_<timestamp>
+    Where to write the report. Default: Desktop\PCDoc\<computer>_<timestamp>
 
 .PARAMETER EventDays
     How many days of event logs to scan for driver/hardware errors. Default 30.
@@ -39,7 +39,7 @@
     Don't open the report in the browser when done.
 
 .EXAMPLE
-    .\Invoke-PCAudit.ps1 -CheckWindowsUpdate        (from an elevated PowerShell prompt)
+    .\Invoke-PCDoc.ps1 -CheckWindowsUpdate        (from an elevated PowerShell prompt)
 #>
 [CmdletBinding()]
 param(
@@ -55,7 +55,7 @@ param(
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
-$ToolVersion = '0.4.4'
+$ToolVersion = '0.4.5'
 $script:CollectionNotes = New-Object System.Collections.Generic.List[object]
 
 # ---------------------------------------------------------------------------
@@ -103,6 +103,16 @@ function Get-WerOccurrence([string]$msg, $logged) {
     }
     if ($when -gt $logged) { $when = $logged }
     return [pscustomobject]@{ Id = $id; When = $when }
+}
+
+# PCDoc was called "PC Audit" up to 0.4.4. Its folders are renamed on first use so history, downloads and
+# dismissals carry over. If a rename isn't possible (a file is open), the old folder keeps being used.
+function Get-RenamedFolder([string]$Parent, [string]$NewName, [string]$OldName) {
+    $new = Join-Path $Parent $NewName; $old = Join-Path $Parent $OldName
+    if (-not (Test-Path -LiteralPath $new) -and (Test-Path -LiteralPath $old)) {
+        try { Move-Item -LiteralPath $old -Destination $new -ErrorAction Stop } catch { return $old }
+    }
+    return $new
 }
 
 function Get-Trimmed([string]$s, [int]$max = 600) {
@@ -345,12 +355,12 @@ $Started = Get-Date
 if (-not $OutputDir) {
     $desk = [Environment]::GetFolderPath('Desktop')
     if (-not $desk) { $desk = $env:TEMP }
-    $OutputDir = Join-Path $desk ("PCAudit\{0}_{1}" -f $env:COMPUTERNAME, $Started.ToString('yyyyMMdd_HHmmss'))
+    $OutputDir = Join-Path (Get-RenamedFolder $desk 'PCDoc' 'PCAudit') ("{0}_{1}" -f $env:COMPUTERNAME, $Started.ToString('yyyyMMdd_HHmmss'))
 }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 Write-Host ''
-Write-Host "PC Audit $ToolVersion - read-only scan. Nothing on this PC will be changed." -ForegroundColor Green
+Write-Host "PCDoc $ToolVersion - read-only scan. Nothing on this PC will be changed." -ForegroundColor Green
 if (-not $IsAdmin) {
     Write-Host 'Not running as administrator: some sections (CBS log, disk reliability, Secure Boot, minidumps) will be limited.' -ForegroundColor Yellow
 }
@@ -358,7 +368,7 @@ Write-Host ''
 
 $script:Audit = [ordered]@{
     Meta = [ordered]@{
-        Tool = 'PC Audit'; Version = $ToolVersion; Computer = $env:COMPUTERNAME; User = $env:USERNAME
+        Tool = 'PCDoc'; Version = $ToolVersion; Computer = $env:COMPUTERNAME; User = $env:USERNAME
         IsAdmin = $IsAdmin; Started = Format-Time $Started; EventDays = $EventDays
         CheckWindowsUpdate = [bool]$CheckWindowsUpdate; DriverAgeYears = $DriverAgeYears
         PSVersion = $PSVersionTable.PSVersion.ToString()
@@ -943,7 +953,7 @@ Invoke-Section 'Windows Update history' {
 if ($CheckWindowsUpdate) {
     Invoke-Section 'Searching Windows Update for offered updates (read-only, may take a few minutes)' {
         $session = New-Object -ComObject Microsoft.Update.Session
-        $session.ClientApplicationID = 'PC Audit (read-only scan)'
+        $session.ClientApplicationID = 'PCDoc (read-only scan)'
         $searcher = $session.CreateUpdateSearcher()
         $searcher.Online = $true
         $res = $searcher.Search("IsInstalled=0 and IsHidden=0")
@@ -1986,7 +1996,7 @@ Invoke-Section 'Online: manufacturer BIOS, drivers and part links' {
         $script:Audit.Devices = @($script:DeviceList | Sort-Object @{e={ -not $_.IsHardware }}, Class, Name)
     }
 
-    # ---------------- Downloadable actions (used by the PC Audit app's Download buttons) ----------------
+    # ---------------- Downloadable actions (used by the PCDoc app's Download buttons) ----------------
     $actions = New-Object System.Collections.Generic.List[object]
     $seen = @{}
     $addAction = {
@@ -2056,8 +2066,8 @@ Invoke-Section 'Change history' {
     $changes = New-Object System.Collections.Generic.List[object]
     $sameVer = { param($a, $b) $na = Get-NumericVersion ([string]$a); $nb = Get-NumericVersion ([string]$b); ($na -and $nb -and ($na -eq $nb -or $na.EndsWith('.' + $nb) -or $nb.EndsWith('.' + $na))) }
 
-    # Downloads and installs done through the PC Audit app
-    $dlRoot = Join-Path (Get-UserDownloadsFolder) 'PC Audit'
+    # Downloads and installs done through the PCDoc app
+    $dlRoot = Get-RenamedFolder (Get-UserDownloadsFolder) 'PCDoc' 'PC Audit'
     $dlLog = Join-Path (Join-Path $dlRoot $env:COMPUTERNAME) 'downloads.log'
     $downloads = @()
     if (Test-Path -LiteralPath $dlLog) {
@@ -2082,28 +2092,28 @@ Invoke-Section 'Change history' {
 
     if ($prev) {
         $since = if ($prevDate) { $prevDate.ToString('yyyy-MM-dd') } else { 'the previous scan' }
-        # Who caused a driver change? Check, in order: PC Audit's own installs, PC Audit's recommendations, Windows Update, Windows' install log
+        # Who caused a driver change? Check, in order: PCDoc's own installs, PCDoc's recommendations, Windows Update, Windows' install log
         $attribute = {
             param($instanceId, $name, $newVer, $prevDevice)
             $nvVer = $(if ($name -match 'NVIDIA' -and (Get-Command ConvertTo-NvidiaVersion -ErrorAction SilentlyContinue)) { ConvertTo-NvidiaVersion $newVer })
             $hit = @($downloads | Where-Object { $_.Ok -and $_.Stage -in @('Install', 'Launch') -and (($_.InstanceIds -contains $instanceId) -or (& $sameVer $_.ToVersion $newVer) -or ($nvVer -and (& $sameVer $_.ToVersion $nvVer))) }) | Select-Object -Last 1
-            if ($hit) { return [pscustomobject]@{ Source = "Installed through PC Audit ($($hit.Source))"; ByPcAudit = $true; When = $hit.Time } }
+            if ($hit) { return [pscustomobject]@{ Source = "Installed through PCDoc ($($hit.Source))"; ByPcAudit = $true; When = $hit.Time } }
             if ($prevDevice -and $prevDevice.Catalog) {
                 foreach ($e in @($prevDevice.Catalog.FamilyLatest, $prevDevice.Catalog.NewestOverall, $prevDevice.Catalog.ExactBoardLatest)) {
-                    if ($e -and (& $sameVer $e.Version $newVer)) { return [pscustomobject]@{ Source = "Recommended by PC Audit on $since (Microsoft Update Catalog)"; ByPcAudit = $true; When = $null } }
+                    if ($e -and (& $sameVer $e.Version $newVer)) { return [pscustomobject]@{ Source = "Recommended by PCDoc on $since (Microsoft Update Catalog)"; ByPcAudit = $true; When = $null } }
                 }
             }
             foreach ($o in @($prev.Online.BoardDrivers)) {
-                if ($o -and $o.InstalledName -eq $name -and (& $sameVer $o.Version $newVer)) { return [pscustomobject]@{ Source = "Recommended by PC Audit on $since (board maker)"; ByPcAudit = $true; When = $null } }
+                if ($o -and $o.InstalledName -eq $name -and (& $sameVer $o.Version $newVer)) { return [pscustomobject]@{ Source = "Recommended by PCDoc on $since (board maker)"; ByPcAudit = $true; When = $null } }
             }
             foreach ($g in @($prev.Online.GPUs)) {
-                if ($g -and $g.Name -eq $name -and $g.Latest -and ((& $sameVer $g.Latest.Version $nvVer) -or (& $sameVer $g.Latest.Version $newVer))) { return [pscustomobject]@{ Source = "Recommended by PC Audit on $since (graphics maker)"; ByPcAudit = $true; When = $null } }
+                if ($g -and $g.Name -eq $name -and $g.Latest -and ((& $sameVer $g.Latest.Version $nvVer) -or (& $sameVer $g.Latest.Version $newVer))) { return [pscustomobject]@{ Source = "Recommended by PCDoc on $since (graphics maker)"; ByPcAudit = $true; When = $null } }
             }
             $wu = @($script:Audit.WindowsUpdate.History | Where-Object { $_.Category -eq 'Driver / firmware' -and $_.Result -like 'Succeeded*' -and $_.Title -like "*$newVer*" }) | Select-Object -First 1
             if ($wu) { return [pscustomobject]@{ Source = 'Windows Update'; ByPcAudit = $false; When = $wu.Date } }
             $si = @($script:DriverInstalls | Where-Object { $_.InstanceId -eq $instanceId -and (& $sameVer $_.Version $newVer) }) | Select-Object -First 1
             if ($si) { return [pscustomobject]@{ Source = $si.Method; ByPcAudit = $false; When = $si.Date } }
-            return [pscustomobject]@{ Source = 'Other (not recommended by PC Audit)'; ByPcAudit = $false; When = $null }
+            return [pscustomobject]@{ Source = 'Other (not recommended by PCDoc)'; ByPcAudit = $false; When = $null }
         }
 
         $prevDevs = @{}
@@ -2138,8 +2148,8 @@ Invoke-Section 'Change history' {
             $rec = $prev.Online.Board.Latest
             $dl = @($downloads | Where-Object { $_.Ok -and $_.Kind -eq 'bios' }) | Select-Object -Last 1
             $nbN = ($nb -replace '[^0-9A-Za-z]', '').ToUpper()
-            if ($rec -and $nbN -and (([string]$rec.Version) -replace '[^0-9A-Za-z]', '').ToUpper().EndsWith($nbN)) { $src = "Recommended by PC Audit on $since"; $by = $true }
-            if ($dl) { $src = "BIOS file downloaded through PC Audit on $(Format-Date $dl.Time)"; $by = $true }
+            if ($rec -and $nbN -and (([string]$rec.Version) -replace '[^0-9A-Za-z]', '').ToUpper().EndsWith($nbN)) { $src = "Recommended by PCDoc on $since"; $by = $true }
+            if ($dl) { $src = "BIOS file downloaded through PCDoc on $(Format-Date $dl.Time)"; $by = $true }
             $changes.Add([pscustomobject][ordered]@{ Kind = 'BIOS updated'; Item = "$($script:Audit.System.Vendor) $($script:Audit.System.FriendlyModel)"; From = $pb; To = $nb; Source = $src; ByPcAudit = $by; When = $null })
         }
         # Windows build
@@ -2277,7 +2287,7 @@ if ($Audit.Online) {
 
 if ($Audit.History -and $Audit.History.PreviousScan) {
     $ch = @($Audit.History.Changes); $by = @($ch | Where-Object { $_.ByPcAudit })
-    if ($ch.Count) { Add-Finding 'info' 'Change history' "$($ch.Count) change(s) since the last scan on $(Format-Date $Audit.History.PreviousScan.Date)$(if ($by.Count) { ", $($by.Count) of them through or recommended by PC Audit" })" (($ch | Select-Object -First 5 | ForEach-Object { "$($_.Kind): $($_.Item)$(if ($_.To) { ' -> ' + $_.To })" }) -join '; ') 'See the Change history tab.' }
+    if ($ch.Count) { Add-Finding 'info' 'Change history' "$($ch.Count) change(s) since the last scan on $(Format-Date $Audit.History.PreviousScan.Date)$(if ($by.Count) { ", $($by.Count) of them through or recommended by PCDoc" })" (($ch | Select-Object -First 5 | ForEach-Object { "$($_.Kind): $($_.Item)$(if ($_.To) { ' -> ' + $_.To })" }) -join '; ') 'See the Change history tab.' }
 }
 
 # Dismissed items: one JSON object per line, latest line per key wins ({"Op":"dismiss"|"restore","Key","At","Title"})
@@ -2310,7 +2320,7 @@ $jsonPath = Join-Path $OutputDir 'audit.json'
 [System.IO.File]::WriteAllText($jsonPath, $json, (New-Object System.Text.UTF8Encoding($false)))
 
 $templatePath = if ($TemplatePath) { $TemplatePath } elseif ($PSScriptRoot) { Join-Path $PSScriptRoot 'report-template.html' } else { Join-Path (Get-Location) 'report-template.html' }
-$reportPath = Join-Path $OutputDir ("PCAudit_{0}.html" -f $env:COMPUTERNAME)
+$reportPath = Join-Path $OutputDir ("PCDoc_{0}.html" -f $env:COMPUTERNAME)
 if (Test-Path $templatePath) {
     $template = [System.IO.File]::ReadAllText($templatePath)
     $safeJson = $json -replace '</', '<\/'
