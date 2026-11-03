@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PC Audit</title>
+<style>
+:root{
+  --bg:#141A23; --rail:#0F141B; --panel:#19212C; --panel-2:#1F2935; --sunk:#151C25;
+  --line:#2A3542; --line-soft:#232D39;
+  --text:#E4E9F0; --muted:#8D99A9; --faint:#5E6A7A;
+  --accent:#6CC4D6;
+  --high:#F07A72; --med:#E6AE55; --low:#80A9F2; --ok:#5CC592; --info:#8D99A9;
+  --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,sans-serif;
+  --display:"Segoe UI Variable Display","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Cascadia Code",Consolas,ui-monospace,monospace;
+  --r-sm:4px; --r:8px;
+  --rail-w:264px;
+}
+*{box-sizing:border-box}
+html{color-scheme:dark}
+body{margin:0;font:14px/1.5 var(--sans);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;font-feature-settings:"calt" 0;font-variant-ligatures:none}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r-sm)}
+::selection{background:color-mix(in srgb,var(--accent) 35%,transparent)}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--rail-w) minmax(0,1fr);min-height:100vh}
+.rail{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--rail);border-right:1px solid var(--line-soft);display:flex;flex-direction:column}
+.ident{padding:22px 22px 18px;border-bottom:1px solid var(--line-soft)}
+.mark{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;margin-bottom:14px}
+.mark svg{flex:none}
+.ident .pc{font:600 19px/1.25 var(--display);letter-spacing:-.005em;word-break:break-word}
+.ident .model{color:var(--muted);font-size:13px;margin-top:2px}
+nav{padding:10px 10px 16px;flex:1}
+.navgroup{margin-top:14px}
+.navgroup:first-child{margin-top:4px}
+.navgroup h3{margin:0 12px 4px;font:500 12px/1.4 var(--sans);color:var(--faint)}
+nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;border-radius:var(--r-sm);padding:7px 12px;font:inherit;font-size:13.5px;color:var(--muted);cursor:pointer;position:relative}
+nav button:hover{background:var(--panel);color:var(--text)}
+nav button.active{background:var(--panel-2);color:var(--text)}
+nav button.active::before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:2px;border-radius:2px;background:var(--accent)}
+nav .lbl{flex:1}
+.led{width:7px;height:7px;border-radius:50%;flex:none;background:var(--line)}
+.led.high{background:var(--high);box-shadow:0 0 0 3px color-mix(in srgb,var(--high) 18%,transparent)}
+.led.medium{background:var(--med)}
+.led.ok{background:var(--ok)}
+.led.info{background:var(--faint)}
+nav .count{font:500 12px/1 var(--mono);color:var(--faint)}
+nav button.active .count{color:var(--muted)}
+.railfoot{padding:14px 22px 20px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--faint);line-height:1.6}
+.railfoot .warn{color:var(--med)}
+
+.content{min-width:0}
+.pagehead{padding:30px 40px 6px;max-width:1380px}
+.pagehead h1{margin:0;font:600 26px/1.2 var(--display);letter-spacing:-.01em}
+.pagehead p{margin:6px 0 0;color:var(--muted);max-width:76ch}
+main{padding:18px 40px 60px;max-width:1380px}
+section{display:none}
+section.active{display:block}
+h2{font:600 15px/1.35 var(--sans);margin:30px 0 10px;color:var(--text)}
+section > h2:first-child{margin-top:4px}
+
+/* ---------- surfaces ---------- */
+.panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--r);padding:16px 18px;margin-bottom:14px}
+.panel h2{margin-top:0}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:14px}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 22px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;word-break:break-word}
+.kv .badge{white-space:normal}
+.note{color:var(--muted);font-size:13px;margin:-2px 0 12px;max-width:110ch}
+.muted{color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.nowrap{white-space:nowrap}
+pre{white-space:pre-wrap;word-break:break-word;font:12.5px/1.55 var(--mono);margin:6px 0 0;color:#C9D2DD}
+.empty{color:var(--muted);padding:18px;text-align:center}
+
+/* ---------- spec plate (summary) ---------- */
+.plate{border:1px solid var(--line);border-radius:var(--r);background:linear-gradient(180deg,var(--panel-2),var(--panel));overflow:hidden;margin-bottom:22px}
+.plate-top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:22px 24px 18px;border-bottom:1px solid var(--line)}
+.plate-maker{color:var(--muted);font-size:13px}
+.plate-model{font:600 32px/1.1 var(--display);letter-spacing:-.015em;margin-top:2px}
+.plate-verdict{text-align:right;font-size:13px;color:var(--muted);white-space:nowrap}
+.plate-verdict b{display:block;font:600 15px/1.3 var(--sans);color:var(--text)}
+.plate-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));margin:0 -1px -1px 0}
+.plate-grid div{padding:12px 24px 13px;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+.plate-grid dt{color:var(--faint);font-size:12px}
+.plate-grid dd{margin:2px 0 0;font-size:13.5px;word-break:break-word}
+
+.verdicts{border:1px solid var(--line-soft);border-radius:var(--r);background:var(--panel);margin-bottom:8px}
+.verdict{display:grid;grid-template-columns:14px 150px 1fr auto;align-items:center;gap:14px;width:100%;padding:11px 18px;border:0;border-top:1px solid var(--line-soft);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.verdicts > .verdict:first-child{border-top:0}
+.verdicts details .verdict{border-top:1px solid var(--line-soft)}
+.verdicts details[open] > summary + .verdict{border-top:0}
+.verdict:hover{background:var(--panel-2)}
+.verdict .topic{color:var(--muted)}
+.verdict .go{color:var(--faint);font-size:12.5px}
+.verdict:hover .go{color:var(--accent)}
+
+/* ---------- stat line (crashes) ---------- */
+.stats{display:flex;flex-wrap:wrap;border:1px solid var(--line-soft);border-radius:var(--r);background:var(--panel);margin-bottom:6px}
+.stat{display:flex;align-items:center;gap:10px;padding:12px 18px;color:var(--muted);border-right:1px solid var(--line-soft)}
+.stat:last-child{border-right:0}
+.stat b{font:600 18px/1 var(--display);color:var(--text)}
+
+/* ---------- findings ---------- */
+.findings{border:1px solid var(--line-soft);border-radius:var(--r);background:var(--panel);overflow:hidden}
+.finding{display:grid;grid-template-columns:96px 1fr auto;gap:16px;padding:14px 18px 14px 16px;border-top:1px solid var(--line-soft);border-left:3px solid transparent}
+.finding:first-child{border-top:0}
+.finding.sev-high{border-left-color:var(--high)}
+.finding.sev-medium{border-left-color:var(--med)}
+.finding.sev-low{border-left-color:var(--low)}
+.finding.sev-info{border-left-color:var(--faint)}
+.finding .t{font-weight:600}
+.finding .d{color:var(--muted);margin-top:2px;word-break:break-word}
+.finding .a{margin-top:6px;color:#C6D0DC}
+.finding .area{color:var(--faint);font-size:12px;margin-top:6px}
+
+/* ---------- badges ---------- */
+.badge{display:inline-flex;align-items:center;gap:6px;padding:1px 8px 1px 7px;border-radius:999px;font-size:12px;font-weight:600;line-height:1.6;white-space:nowrap;border:1px solid transparent}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.b-high{color:var(--high);background:color-mix(in srgb,var(--high) 13%,transparent);border-color:color-mix(in srgb,var(--high) 22%,transparent)}
+.b-medium{color:var(--med);background:color-mix(in srgb,var(--med) 12%,transparent);border-color:color-mix(in srgb,var(--med) 20%,transparent)}
+.b-low{color:var(--low);background:color-mix(in srgb,var(--low) 12%,transparent);border-color:color-mix(in srgb,var(--low) 20%,transparent)}
+.b-ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 11%,transparent);border-color:color-mix(in srgb,var(--ok) 18%,transparent)}
+.b-info{color:var(--muted);background:color-mix(in srgb,var(--muted) 10%,transparent);border-color:color-mix(in srgb,var(--muted) 16%,transparent)}
+.flag{margin:0 4px 3px 0}
+.heat{min-width:26px;justify-content:center}
+.heat::before{display:none}
+
+/* ---------- tables ---------- */
+.tablewrap{border:1px solid var(--line-soft);border-radius:var(--r);overflow:auto;background:var(--panel);margin-bottom:16px}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{position:sticky;top:0;z-index:1;background:var(--panel-2);font-weight:500;font-size:12.5px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap}
+th:hover{color:var(--text)}
+th.sorted-asc,th.sorted-desc{color:var(--text)}
+th.sorted-asc::after{content:" ▴";color:var(--accent)}
+th.sorted-desc::after{content:" ▾";color:var(--accent)}
+tr.row{cursor:pointer}
+tr.row:hover td{background:color-mix(in srgb,var(--accent) 5%,transparent)}
+tr.row.open td{background:color-mix(in srgb,var(--accent) 7%,transparent);border-bottom-color:transparent}
+tr.detail td{background:var(--sunk);font-size:13px;padding:14px 16px 16px}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td .muted{font-size:12.5px}
+.links{display:flex;flex-wrap:wrap;gap:2px 12px}
+.links a{white-space:nowrap}
+#s-devices .links{flex-direction:column;align-items:flex-start;gap:3px;font-size:13px}
+#s-devices td:last-child{min-width:190px;max-width:260px}
+#s-devices .links a{white-space:normal}
+#s-devices td:last-child .muted{display:block;margin-top:6px;font-size:12px;line-height:1.45}
+
+/* ---------- folded "no issues" rows ---------- */
+.okfold{margin:-6px 0 18px}
+.okfold > summary{list-style:none;display:inline-flex;align-items:center;gap:10px;padding:7px 12px;border-radius:var(--r-sm);color:var(--muted);cursor:pointer;font-size:13.5px;user-select:none}
+.okfold > summary::-webkit-details-marker{display:none}
+.okfold > summary::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);margin-left:2px;transition:transform .15s}
+.okfold[open] > summary::after{transform:rotate(45deg)}
+.okfold > summary:hover{background:var(--panel);color:var(--text)}
+.okfold[open] > summary{margin-bottom:8px}
+.okfold .tablewrap{opacity:.92}
+.allok{display:flex;align-items:center;gap:10px;padding:12px 16px;border:1px solid var(--line-soft);border-radius:var(--r);background:var(--panel);color:var(--muted);margin-bottom:14px}
+.verdicts .okfold{margin:0;border-top:1px solid var(--line-soft)}
+.verdicts .okfold > summary{display:flex;padding:11px 18px;border-radius:0;width:100%}
+.verdicts .okfold[open] > summary{margin-bottom:0;border-bottom:1px solid var(--line-soft)}
+
+/* ---------- action buttons (inside the app) ---------- */
+.act{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:var(--r-sm);background:color-mix(in srgb,var(--accent) 10%,transparent);color:var(--accent);font:600 12.5px/1.5 var(--sans);cursor:pointer;white-space:nowrap}
+.act:hover{background:color-mix(in srgb,var(--accent) 18%,transparent)}
+.act:disabled{opacity:.45;cursor:default}
+.act.quiet{border-color:var(--line);background:none;color:var(--muted)}
+.actwrap{display:inline-flex;flex-direction:column;align-items:flex-start;gap:3px}
+.actst{font-size:12px;color:var(--muted);max-width:260px;line-height:1.4}
+.actst:empty{display:none}
+.actst.working{color:var(--accent)}
+.actst.done{color:var(--ok)}
+.actst.warn{color:var(--med)}
+.actst.error{color:var(--high)}
+.actst .bar{display:block;height:3px;border-radius:2px;background:var(--line);margin-top:4px;overflow:hidden;width:160px}
+.actst .bar i{display:block;height:100%;background:var(--accent);transition:width .25s}
+.pcabadge{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 24%,transparent)}
+.dlbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;border:1px solid var(--line-soft);border-radius:var(--r);background:var(--panel);margin-bottom:16px;color:var(--muted)}
+.dlbar .mono{color:var(--text);word-break:break-all}
+
+.backbadge{color:var(--med);background:color-mix(in srgb,var(--med) 12%,transparent);border-color:color-mix(in srgb,var(--med) 20%,transparent)}
+.disfold{margin:-6px 0 18px}
+.disfold > summary{list-style:none;display:inline-flex;align-items:center;gap:10px;padding:7px 12px;border-radius:var(--r-sm);color:var(--faint);cursor:pointer;font-size:13.5px;user-select:none}
+.disfold > summary::-webkit-details-marker{display:none}
+.disfold > summary:hover{background:var(--panel);color:var(--text)}
+.disfold[open] > summary{margin-bottom:8px}
+.disfold .tablewrap,.disfold .findings{opacity:.75}
+
+.winsel{padding:12px 22px 16px;border-top:1px solid var(--line-soft)}
+.winsel p{margin:0 0 8px;font-size:12px;color:var(--faint)}
+.winsel div{display:grid;grid-template-columns:auto repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden}
+.winsel button{min-height:30px;padding:0 7px;white-space:nowrap;border:0;border-left:1px solid var(--line);background:none;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+.winsel button:first-child{border-left:0}
+.winsel button:hover{color:var(--text);background:var(--panel)}
+.winsel button[aria-pressed="true"]{background:var(--panel-2);color:var(--accent)}
+
+/* ---------- toolbar ---------- */
+.toolbar{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar input[type=search]{padding:7px 11px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--sunk);color:var(--text);min-width:300px;font:inherit}
+.toolbar input[type=search]::placeholder{color:var(--faint)}
+.toolbar input[type=search]:focus{border-color:var(--accent);outline:none}
+.toolbar label{color:var(--muted);display:flex;gap:7px;align-items:center;cursor:pointer;font-size:13.5px}
+.toolbar input[type=checkbox]{accent-color:var(--accent)}
+.toolbar select{padding:6px 9px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--sunk);color:var(--text);font:inherit;font-size:13.5px}
+
+/* ---------- small screens ---------- */
+@media (max-width:900px){
+  .app{display:block}
+  .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line-soft)}
+  nav{display:flex;gap:4px;overflow-x:auto;padding:8px 10px}
+  .navgroup{display:contents}
+  .navgroup h3{display:none}
+  nav button{width:auto;white-space:nowrap}
+  .railfoot{display:none}
+  .winsel{border-top:0;padding-top:0}
+  .pagehead,main{padding-left:18px;padding-right:18px}
+  .cols{grid-template-columns:1fr}
+  .verdict{grid-template-columns:14px 1fr;}
+  .verdict .topic{grid-column:2}
+  .verdict .go{display:none}
+  .plate-top{flex-direction:column;align-items:flex-start}
+  .plate-verdict{text-align:left}
+}
+@media (prefers-reduced-motion:no-preference){
+  section.active{animation:enter .18s ease-out}
+  @keyframes enter{from{opacity:.4}to{opacity:1}}
+}
+@media print{
+  :root{--bg:#fff;--panel:#fff;--panel-2:#f3f4f6;--sunk:#fafafa;--text:#111;--muted:#555;--faint:#777;--line:#ccc;--line-soft:#ddd}
+  html{color-scheme:light}
+  .rail,.toolbar,.act,.actst{display:none}
+  .app{display:block}
+  section{display:block!important;break-before:page}
+  .pagehead{display:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="ident">
+      <div class="mark"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="3.5" y="3.5" width="9" height="9" rx="1.5" stroke="currentColor"/><rect x="6" y="6" width="4" height="4" rx=".5" fill="currentColor"/><path d="M6 1v2.5M10 1v2.5M6 12.5V15M10 12.5V15M1 6h2.5M1 10h2.5M12.5 6H15M12.5 10H15" stroke="currentColor" stroke-linecap="round"/></svg>PC Audit report</div>
+      <div class="pc" id="pcname"></div>
+      <div class="model" id="pcmodel"></div>
+    </div>
+    <nav id="nav" aria-label="Report sections"></nav>
+    <div class="winsel" id="winsel"></div>
+    <div class="railfoot" id="railfoot"></div>
+  </aside>
+  <div class="content">
+    <header class="pagehead"><h1 id="pagetitle"></h1><p id="pagedesc"></p></header>
+    <main id="main"></main>
+  </div>
+</div>
+
+<script>
+const AUDIT = /*__AUDIT_DATA__*/null;
+
+/* ---------- helpers ---------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = v => v == null ? '' : String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const arr = v => v == null ? [] : Array.isArray(v) ? v : [v];
+const sevBadge = s => `<span class="badge b-${esc(s)}">${esc(String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1))}</span>`;
+const linkList = links => `<span class="links">${arr(links).map(l => `<a href="${esc(l.Url)}" target="_blank" rel="noopener">${esc(l.Label)}</a>`).join('')}</span>`;
+const kv = obj => '<dl class="kv">' + Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => `<dt>${esc(k)}</dt><dd>${typeof v === 'string' && v.startsWith('<') ? v : esc(v)}</dd>`).join('') + '</dl>';
+const resBadge = r => {
+  const m = {'Resolved':'ok','Superseded':'ok','Probably resolved':'low','Probably superseded':'low','Unresolved':'high','Still pending':'medium'};
+  return r ? `<span class="badge b-${m[r] || 'info'}">${esc(r)}</span>` : '';
+};
+const flagBadge = f => {
+  const m = {Problem:'high',NoDriver:'high',GenericDriver:'medium',Unsigned:'medium',OldDriver:'low',Disabled:'info',NotPresent:'info'};
+  const label = {Problem:'Problem',NoDriver:'No driver',GenericDriver:'Generic driver',Unsigned:'Unsigned',OldDriver:'Old driver',Disabled:'Disabled',NotPresent:'Not connected'};
+  return `<span class="badge b-${m[f] || 'info'} flag">${esc(label[f] || f)}</span>`;
+};
+
+/* Generic table: cols = [{k, label, render?, cls?, sort?}], rows = array; detail(row) => html for expand row */
+function tableCore(el, rows, cols, opts = {}) {
+  const state = { sortKey: opts.sortKey || null, dir: opts.dir || 1 };
+  function draw() {
+    let data = rows.slice();
+    if (state.sortKey) {
+      const c = cols.find(c => c.k === state.sortKey);
+      const val = r => c.sort ? c.sort(r) : r[c.k];
+      data.sort((a, b) => { const x = val(a), y = val(b); if (x == null) return 1; if (y == null) return -1;
+        return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y), undefined, {numeric:true})) * state.dir; });
+    }
+    if (!data.length) { el.innerHTML = `<div class="tablewrap"><div class="empty">${esc(opts.empty || 'Nothing to show')}</div></div>`; return; }
+    const head = cols.map(c => `<th data-k="${c.k}" class="${state.sortKey === c.k ? (state.dir > 0 ? 'sorted-asc' : 'sorted-desc') : ''}">${esc(c.label)}</th>`).join('');
+    const body = data.map((r, i) => `<tr class="${opts.detail ? 'row' : ''}" data-i="${i}">` + cols.map(c => `<td class="${c.cls || ''}">${c.render ? c.render(r) : esc(r[c.k])}</td>`).join('') + '</tr>').join('');
+    el.innerHTML = `<div class="tablewrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    el.querySelectorAll('th').forEach(th => th.onclick = () => { const k = th.dataset.k; state.dir = state.sortKey === k ? -state.dir : 1; state.sortKey = k; draw(); });
+    if (opts.detail) el.querySelectorAll('tr.row').forEach(tr => tr.onclick = e => {
+      if (e.target.closest('a,button')) return;
+      const next = tr.nextElementSibling;
+      if (next && next.classList.contains('detail')) { next.remove(); tr.classList.remove('open'); return; }
+      tr.classList.add('open');
+      const d = document.createElement('tr'); d.className = 'detail';
+      d.innerHTML = `<td colspan="${cols.length}">${opts.detail(data[+tr.dataset.i])}</td>`; tr.after(d);
+    });
+  }
+  draw();
+}
+/* table(): when opts.isOk is given, rows that pass are folded away under "Show N … with no issues". */
+function table(el, rows, cols, opts = {}) {
+  if (!opts.isOk) return tableCore(el, rows, cols, opts);
+  const bad = rows.filter(r => !opts.isOk(r)), good = rows.filter(r => opts.isOk(r));
+  const wasOpen = el._okOpen || opts.forceOpen;
+  const okText = (opts.okLabel || (n => `${n} item${n === 1 ? '' : 's'} with no issues`))(good.length);
+  el.innerHTML = `<div class="t-bad"></div>${good.length ? `<details class="okfold"${wasOpen ? ' open' : ''}><summary><span class="led ok" aria-hidden="true"></span>${esc(okText)}</summary><div class="t-good"></div></details>` : ''}`;
+  if (bad.length) tableCore($('.t-bad', el), bad, cols, opts);
+  else $('.t-bad', el).innerHTML = `<div class="allok"><span class="led ok" aria-hidden="true"></span>${esc(rows.length ? (opts.allOkText || 'Nothing needs attention here.') : (opts.empty || 'Nothing to show'))}</div>`;
+  if (good.length) {
+    const d = $('details.okfold', el);
+    d.addEventListener('toggle', () => { el._okOpen = d.open; });
+    tableCore($('.t-good', el), good, cols, Object.assign({}, opts, { empty: '' }));
+  }
+}
+function filterBox(placeholder, onChange, extra = '') {
+  const div = document.createElement('div'); div.className = 'toolbar';
+  div.innerHTML = `<input type="search" placeholder="${esc(placeholder)}">${extra}`;
+  div.addEventListener('input', onChange); div.addEventListener('change', onChange);
+  return div;
+}
+const textMatch = (r, q) => !q || JSON.stringify(r).toLowerCase().includes(q.toLowerCase());
+
+/* ---------- download actions ----------
+   Inside the PC Audit app the page talks to the app over WebView2 messages:
+   page -> app: "prepare|<id>", "openfolder", "openpath|<path>"
+   app -> page: "status|<id>|<state>|<text>|<percent>"   (state: working, ready, done, manual, blocked, error, idle)
+   Opened as a plain file in a browser, the buttons are ordinary download links. */
+const HOST = window.chrome && window.chrome.webview ? window.chrome.webview : null;
+const ACTS = {}; arr((AUDIT || {}).Actions).forEach(a => { ACTS[a.Id] = a; });
+const actState = {};
+const ACT_LABEL = { cab: 'Download & install', installer: 'Download & open installer', package: 'Download & open installer', bios: 'Download' };
+function actStatusHtml(id) {
+  const st = actState[id]; if (!st) return '';
+  const bar = st.state === 'working' && st.pct != null ? `<span class="bar"><i style="width:${Math.max(2, Math.min(100, st.pct))}%"></i></span>` : '';
+  return esc(st.text) + bar;
+}
+function actBtn(obj, fallbackUrl, fallbackLabel) {
+  const id = obj && obj.ActionId, a = id && ACTS[id];
+  if (!a) return fallbackUrl ? `<a href="${esc(fallbackUrl)}" target="_blank" rel="noopener">${esc(fallbackLabel || 'Download')}</a>` : '';
+  if (!HOST) return `<a href="${esc(a.Url)}" target="_blank" rel="noopener" title="Opened in the PC Audit app, this downloads, checks and sets up the file for you">${esc(fallbackLabel || 'Download')}</a>`;
+  const st = actState[id] || {};
+  const busy = st.state === 'working';
+  return `<span class="actwrap"><button type="button" class="act" data-act="${esc(id)}"${busy ? ' disabled' : ''} title="${esc(a.Url)}">${esc(ACT_LABEL[a.Kind] || 'Download')}</button><span class="actst ${esc(st.cls || '')}" data-st="${esc(id)}">${actStatusHtml(id)}</span></span>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button.act[data-act]');
+  if (b && HOST) { e.preventDefault(); e.stopPropagation(); HOST.postMessage('prepare|' + b.dataset.act); return; }
+  const f = e.target.closest('[data-openfolder]');
+  if (f && HOST) { e.preventDefault(); HOST.postMessage(f.dataset.openfolder ? 'openpath|' + f.dataset.openfolder : 'openfolder'); }
+});
+if (HOST) HOST.addEventListener('message', ev => {
+  const parts = String(ev.data || '').split('|');
+  if (parts[0] === 'status') {
+    const [, id, state, text, pct] = parts;
+    const cls = { working: 'working', done: 'done', ready: 'done', manual: 'warn', blocked: 'warn', error: 'error' }[state] || '';
+    actState[id] = state === 'idle' ? null : { state, text, cls, pct: pct ? +pct : null };
+    document.querySelectorAll(`[data-st="${CSS.escape(id)}"]`).forEach(x => { x.className = 'actst ' + cls; x.innerHTML = actStatusHtml(id); });
+    document.querySelectorAll(`button.act[data-act="${CSS.escape(id)}"]`).forEach(x => { x.disabled = state === 'working'; });
+  } else if (parts[0] === 'busy') {
+    // another action is running: only one download at a time
+    document.querySelectorAll('button.act').forEach(x => { x.disabled = parts[1] === '1' || (actState[x.dataset.act] || {}).state === 'working'; });
+  }
+});
+
+/* ---------- sections ---------- */
+const A = AUDIT || {};
+const S = A.System || {}, W = A.Windows || {}, WU = A.WindowsUpdate || {}, H = A.Hardware || {};
+const devices = arr(A.Devices);
+const HI = A.History || {};
+
+/* ---------- dismissed items ----------
+   Each dismissal has a key (event|source|id, wu|KB, device|id|code, crashes, setupapi, finding|area|title) and the time it
+   was dismissed. An item stays hidden until it happens again after that time, then it comes back marked as such. */
+const DIS = {}; arr(A.Dismissals).forEach(d => { if (d && d.Key) DIS[d.Key] = d; });
+const isDis = (key, last) => { const d = DIS[key]; return !!d && (!last || String(last) <= String(d.At || '')); };
+// Dismissing the blue screens also covers the crash records they leave in the event log
+const CRASH_EVENTS = ['event|Microsoft-Windows-WER-SystemErrorReporting|1001', 'event|Microsoft-Windows-Kernel-Power|41'];
+const isDisX = (key, last) => isDis(key, last) || (CRASH_EVENTS.includes(key) && isDis('crashes', last));
+const isBack = (key, last) => { const d = DIS[key]; return !!d && !!last && String(last) > String(d.At || ''); };
+/* Time window: hide issues whose last occurrence is older than N days before the scan (0 = show all).
+   Current-state items (a device problem now, an update available now) have no date and are never hidden by this. */
+let WIN = +(A.IgnoreOlderThanDays || 0);
+const scanTime = (() => { const t = new Date(String((A.Meta || {}).Started || '')); return isNaN(t) ? new Date() : t; })();
+const pad = n => String(n).padStart(2, '0');
+const isoLocal = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const cutoff = () => WIN ? isoLocal(new Date(scanTime.getTime() - WIN * 864e5)) : '';
+const isOld = last => !!WIN && !!last && String(last) < cutoff();
+const fKeys = f => arr(f.Keys).length ? arr(f.Keys) : [`finding|${f.Area}|${f.Title}`];
+const fDis = f => fKeys(f).every(k => isDisX(k, f.Last)) || isOld(f.Last);
+const fBack = f => fKeys(f).some(k => isBack(k, f.Last));
+const disAt = keys => { const t = arr(keys).map(k => DIS[k] && DIS[k].At).filter(Boolean).sort().pop(); return t ? String(t).slice(0, 10) : ''; };
+const backBadge = (keys, last) => arr(keys).some(k => isBack(k, last)) ? `<span class="badge backbadge flag" title="You dismissed this on ${esc(disAt(keys))}">Happened again</span>` : '';
+const encKeys = keys => arr(keys).map(k => encodeURIComponent(k)).join(',');
+function disBtn(keys, title) {
+  if (!HOST) return '';
+  return `<button type="button" class="act quiet" data-dis="${esc(encKeys(keys))}" data-title="${esc(title || '')}" title="Hide this until it happens again">Dismiss</button>`;
+}
+function restoreBtn(keys) {
+  if (!HOST) return '';
+  return `<button type="button" class="act quiet" data-restore="${esc(encKeys(keys))}">Restore</button>`;
+}
+const hiddenLabel = n => WIN ? `${n} dismissed or older than ${WIN} day${WIN === 1 ? '' : 's'}` : `${n} dismissed`;
+/* A folded list of dismissed rows under a table */
+function dismissedFold(el, rows, cols, opts = {}) {
+  if (!rows.length) return;
+  const d = document.createElement('details'); d.className = 'disfold';
+  d.innerHTML = `<summary>${esc(hiddenLabel(rows.length))}</summary><div></div>`;
+  el.appendChild(d);
+  tableCore(d.lastElementChild, rows, cols.concat([{ k: '_r', label: '', render: r => opts.keys(r).some(k => DIS[k]) ? restoreBtn(opts.keys(r)) : '<span class="muted">Older</span>' }]), Object.assign({}, opts, { empty: '' }));
+}
+
+/* Unexpected restarts (Kernel-Power 41): taken from the event group so a dismissal hides old ones too */
+function unexpected() {
+  const all = arr(A.EventIssues).find(e => e.Provider === 'Microsoft-Windows-Kernel-Power' && e.Id === 41);
+  if (all && (isDisX(all.Key, all.Last) || isOld(all.Last))) return 0;
+  return all ? all.Count : ((A.Crashes || {}).UnexpectedRestartsInWindow || 0);
+}
+let findings, findingsDismissed, eventIssues, eventsDismissed, failures, failuresDismissed, unresolved, bsods, bsodsDismissed, diFailures, diDismissed, probDevs, devAttention, sections;
+function derive() {
+  const allF = arr(A.Findings);
+  findings = allF.filter(f => !fDis(f)); findingsDismissed = allF.filter(fDis);
+  const allE = arr(A.EventIssues);
+  const hE = e => isDisX(e.Key, e.Last) || isOld(e.Last);
+  eventIssues = allE.filter(e => !hE(e)); eventsDismissed = allE.filter(hE);
+  const allW = arr(WU.Failures), hW = f => isDis(f.Key, f.Date) || isOld(f.Date);
+  failures = allW.filter(f => !hW(f)); failuresDismissed = allW.filter(hW);
+  unresolved = failures.filter(f => ['Unresolved','Still pending'].includes(f.Resolution));
+  const allB = arr((A.Crashes || {}).BugChecks);
+  const hB = b => isDis('crashes', b.Date) || isOld(b.Date);
+  bsods = allB.filter(b => !hB(b)); bsodsDismissed = allB.filter(hB);
+  const allD = arr(A.DriverInstallFailures);
+  const hD = x => isDis('setupapi', x.Date) || isOld(x.Date);
+  diFailures = allD.filter(x => !hD(x)); diDismissed = allD.filter(hD);
+  probDevs = devices.filter(d => d.Present && arr(d.Flags).includes('Problem') && !isDis(`device|${d.InstanceId}|${d.ErrorCode}`, null));
+  devAttention = devices.filter(d => d.Present && (arr(d.Flags).some(f => ['NoDriver','GenericDriver','Unsigned'].includes(f)) || (d.Catalog && /^(Newer version|Vendor driver)/.test(d.Catalog.Status))));
+}
+derive();
+
+const M = A.Meta || {};
+document.title = `PC Audit: ${M.Computer || ''}`;
+$('#pcname').textContent = M.Computer || 'This PC';
+$('#pcmodel').textContent = [S.Vendor, S.FriendlyModel || S.Model].filter(Boolean).join(' ');
+$('#railfoot').innerHTML = `Scanned ${esc(String(M.Started || '').replace('T', ' ').slice(0, 16))}<br>${esc(W.Product || '')} ${esc(W.Version || '')}<br>` +
+  (M.IsAdmin ? 'Run as administrator' : '<span class="warn">Not run as administrator: some data missing</span>') + `<br>PC Audit ${esc(M.Version || '')}`;
+
+const sevLevel = list => list.some(x => x === 'high') ? 'high' : list.some(x => x === 'medium') ? 'medium' : 'ok';
+function makeSections() { sections = [
+  { id: 'summary', group: 'Overview', label: 'Summary', title: 'Summary', desc: 'What needs attention on this PC, most important first.',
+    count: findings.filter(f => f.Severity === 'high' || f.Severity === 'medium').length, level: sevLevel(findings.map(f => f.Severity)), render: renderSummary },
+  { id: 'updates', group: 'Overview', label: 'Updates', title: 'Updates', desc: "Installed versions compared with the manufacturers' latest BIOS and drivers and with the Microsoft Update Catalog.",
+    count: updateCount(), level: !A.Online ? 'info' : updateCount() ? 'medium' : 'ok', render: renderUpdates },
+  { id: 'history', group: 'Overview', label: 'Change history', title: 'Change history', desc: 'What changed since the last scan of this PC, what PC Audit recommended or installed, and every driver install Windows recorded.',
+    count: arr(HI.Changes).length, level: arr(HI.Changes).some(c => c.Kind === 'New problem') ? 'medium' : arr(HI.Changes).length ? 'info' : null, render: renderHistory },
+  { id: 'system', group: 'Hardware', label: 'System', title: 'System', desc: 'Motherboard, firmware, processor, memory, graphics and storage.', render: renderSystem },
+  { id: 'devices', group: 'Hardware', label: 'Drivers & devices', title: 'Drivers & devices', desc: 'Every device Windows knows about, with its driver and where to find updates.',
+    count: probDevs.length + devAttention.length, level: probDevs.length ? 'high' : devAttention.length ? 'medium' : 'ok', render: renderDevices },
+  { id: 'wu', group: 'Windows', label: 'Windows & updates', title: 'Windows & updates', desc: 'Windows version and support status, failed updates and whether later updates fixed them.',
+    count: unresolved.length, level: String(W.SupportState || '').startsWith('OUT') ? 'high' : unresolved.length ? 'medium' : 'ok', render: renderWU },
+  { id: 'events', group: 'Windows', label: 'Event log issues', title: 'Event log issues', desc: 'Driver and hardware errors from the Windows event logs, grouped by source.',
+    count: eventIssues.filter(e => e.Severity === 'high' || e.Severity === 'medium').length, level: sevLevel(eventIssues.map(e => e.Severity)), render: renderEvents },
+  { id: 'crashes', group: 'Windows', label: 'Crashes', title: 'Crashes', desc: 'Blue screens, unexpected restarts, dump files and the 12-month reliability record.',
+    count: bsods.length, level: bsods.length ? 'high' : (unexpected() ? 'medium' : 'ok'), render: renderCrashes },
+  { id: 'logs', group: 'Windows', label: 'Install & servicing logs', title: 'Install & servicing logs', desc: 'Failed driver installs, component store errors and feature upgrade logs.',
+    count: diFailures.length, level: ((A.ServicingLogs || {}).RollbackFolderPresent && !isDis('rollback', null)) ? 'high' : diFailures.length ? 'medium' : 'ok', render: renderLogs },
+  { id: 'notes', group: 'Report', label: 'Scan notes', title: 'Scan notes', desc: 'How this scan ran and anything it could not collect.',
+    count: arr(A.CollectionNotes).length, level: arr(A.CollectionNotes).length ? 'info' : null, render: renderNotes },
+]; }
+function updateCount() {
+  const O = A.Online; if (!O) return 0;
+  const b = O.Board && /newer/i.test(O.Board.Status || '') ? 1 : 0;
+  const d = arr(O.BoardDrivers).filter(x => /^(Newer|Probably newer|Generic)/.test(x.Status)).length;
+  const g = arr(O.GPUs).filter(x => x.Status === 'Newer available').length;
+  const c = devices.filter(x => x.Catalog && /^(Newer version|Vendor driver)/.test(x.Catalog.Status)).length;
+  return b + d + g + c;
+}
+const statusBadge = s => {
+  if (!s) return '';
+  const cls = /^Up to date|Installed is newer/.test(s) ? 'ok' : /^Newer driver branch/.test(s) ? 'low' : /^(Newer|Probably newer|Generic|Vendor driver)|newer version/i.test(s) ? 'medium'
+            : /Could not|Not detected|manually|Not checked|No automatic/.test(s) ? 'info' : /Optional/.test(s) ? 'info' : 'low';
+  return `<span class="badge b-${cls}">${esc(s)}</span>`;
+};
+function catBadge(d) {
+  const c = d.Catalog; if (!c) return '';
+  if (c.Status === 'Newer version available') return `<span class="badge b-medium flag" title="Microsoft Update Catalog">Newer: ${esc(c.FamilyLatest.Version)}</span>`;
+  if (c.Status === 'Vendor driver available') return '<span class="badge b-medium flag">Vendor driver in Catalog</span>';
+  if (c.Status === 'Newer driver branch available') return '<span class="badge b-low flag">Newer branch in Catalog</span>';
+  return '';
+}
+function catSummary(d) {
+  const c = d.Catalog, L = (e, txt) => e ? `<a href="${esc(e.Url)}" target="_blank" rel="noopener">${esc(txt || e.Version)}</a> (${esc(e.Date || '')})${e.DownloadUrl ? ` · <a href="${esc(e.DownloadUrl)}">Download .cab</a>` : ''}` : '';
+  const parts = [`${statusBadge(c.Status)}`];
+  if (c.FamilyLatest) parts.push(`Newest in installed family: ${L(c.FamilyLatest)}`);
+  if (c.NewestOverall && (!c.FamilyLatest || c.NewestOverall.Version !== c.FamilyLatest.Version)) parts.push(`Newest overall: ${L(c.NewestOverall)}${c.FamilyLatest ? ' (different driver branch)' : ''}`);
+  if (c.ExactBoardLatest) parts.push(`Published for this exact board/system: ${L(c.ExactBoardLatest)}`);
+  parts.push(`<a href="${esc(c.SearchUrl)}" target="_blank" rel="noopener">Open Catalog search</a> (${c.Count} applicable result${c.Count === 1 ? '' : 's'} checked)`);
+  return parts.join('<br>');
+}
+const nav = $('#nav'), main = $('#main');
+let current = null;
+function build() {
+  derive(); makeSections();
+  nav.innerHTML = ''; main.innerHTML = '';
+  const groups = {};
+  sections.forEach(s => {
+  if (!groups[s.group]) { const g = document.createElement('div'); g.className = 'navgroup'; g.innerHTML = `<h3>${esc(s.group)}</h3>`; nav.appendChild(g); groups[s.group] = g; }
+  const b = document.createElement('button'); b.dataset.id = s.id; b.type = 'button';
+  b.innerHTML = `<span class="led ${s.level || ''}" aria-hidden="true"></span><span class="lbl">${esc(s.label)}</span>${s.count ? `<span class="count">${s.count}</span>` : ''}`;
+  if (s.level && s.level !== 'ok') b.title = s.level === 'high' ? 'Needs attention' : s.level === 'medium' ? 'Worth checking' : '';
+  b.onclick = () => { show(s.id); window.scrollTo(0, 0); }; groups[s.group].appendChild(b);
+  const sec = document.createElement('section'); sec.id = 's-' + s.id; main.appendChild(sec);
+  try { s.render(sec); } catch (e) { sec.innerHTML = `<div class="panel">This section could not be shown: ${esc(e.message)}</div>`; console.error(e); }
+  });
+}
+function show(id) {
+  const s = sections.find(x => x.id === id) || sections[0];
+  current = s.id;
+  document.querySelectorAll('nav button').forEach(b => { const on = b.dataset.id === s.id; b.classList.toggle('active', on); b.setAttribute('aria-current', on ? 'page' : 'false'); });
+  document.querySelectorAll('section').forEach(x => x.classList.toggle('active', x.id === 's-' + s.id));
+  $('#pagetitle').textContent = s.title; $('#pagedesc').textContent = s.desc;
+  history.replaceState(null, '', '#' + s.id);
+}
+function drawWin() {
+  const opts = [[0, 'All'], [30, '30 days'], [7, '7 days'], [1, '1 day']];
+  $('#winsel').innerHTML = `<p id="winlbl">Show issues from</p><div role="group" aria-labelledby="winlbl">${opts.map(([d, l]) =>
+    `<button type="button" data-win="${d}" aria-pressed="${WIN === d}" title="${d ? `Hide issues that last happened more than ${l} before this scan` : 'Show issues of any age'}">${l}</button>`).join('')}</div>`;
+}
+$('#winsel').addEventListener('click', e => {
+  const b = e.target.closest('[data-win]'); if (!b) return;
+  WIN = +b.dataset.win; drawWin(); rebuild();
+  if (HOST) HOST.postMessage('window|' + WIN);
+});
+drawWin();
+build();
+show((location.hash || '#summary').slice(1));
+function rebuild() { const y = window.scrollY, id = current; build(); show(id); window.scrollTo(0, y); }
+
+// Dismiss / restore, inside the PC Audit app (the app keeps the list for this PC)
+document.addEventListener('click', e => {
+  const d = e.target.closest('[data-dis]'), r = e.target.closest('[data-restore]');
+  if (!HOST || !(d || r)) return;
+  e.preventDefault(); e.stopPropagation();
+  if (d) { d.disabled = true; HOST.postMessage('dismiss|' + d.dataset.dis + '|' + encodeURIComponent(d.dataset.title || '')); }
+  else { r.disabled = true; HOST.postMessage('restore|' + r.dataset.restore); }
+});
+if (HOST) HOST.addEventListener('message', ev => {
+  const p = String(ev.data || '').split('|');
+  if (p[0] !== 'dismissed' && p[0] !== 'restored') return;
+  const keys = (p[1] || '').split(',').filter(Boolean).map(decodeURIComponent);
+  keys.forEach(k => { if (p[0] === 'dismissed') DIS[k] = { Key: k, At: p[2] }; else delete DIS[k]; });
+  rebuild();
+});
+
+function fCard(f, dismissed) {
+  return `<div class="finding sev-${esc(f.Severity)}"><div>${sevBadge(f.Severity)}<div class="area">${esc(f.Area)}</div></div>
+    <div><div class="t">${esc(f.Title)} ${dismissed ? '' : backBadge(fKeys(f), f.Last)}</div>${f.Detail ? `<div class="d">${esc(f.Detail)}</div>` : ''}${f.Action ? `<div class="a">${esc(f.Action)}</div>` : ''}
+    ${dismissed ? `<div class="area">${fKeys(f).some(k => DIS[k]) ? 'Dismissed ' + esc(disAt(fKeys(f))) : 'Older than ' + WIN + ' days'}</div>` : ''}</div>
+    <div>${dismissed ? (fKeys(f).some(k => DIS[k]) ? restoreBtn(fKeys(f)) : '') : (f.Severity === 'info' ? '' : disBtn(fKeys(f), f.Title))}</div></div>`;
+}
+
+function renderSummary(el) {
+  const O = A.Online || {}, B = O.Board || {}, BI = S.BIOS || {};
+  const cpu = arr(H.CPU)[0] || {}, gpu = arr(H.GPU).map(g => g.Name).join(', ');
+  const high = findings.filter(f => f.Severity === 'high').length, med = findings.filter(f => f.Severity === 'medium').length;
+  const verdictText = high ? `${high} issue${high > 1 ? 's' : ''} need${high > 1 ? '' : 's'} attention` : med ? `${med} thing${med > 1 ? 's' : ''} worth checking` : 'No problems found';
+  const plateRows = [
+    ['Windows', W.Product ? `${W.Product} ${W.Version || ''}, build ${W.FullBuild || ''}` : null],
+    ['Processor', cpu.Name], ['Memory', S.MemoryGB != null ? `${S.MemoryGB} GB` : null], ['Graphics', gpu || null],
+    ['BIOS', BI.Version ? `${BI.Version}${BI.ReleaseDate ? ', ' + BI.ReleaseDate : ''}` : null],
+    ['Motherboard', S.Board ? [S.Board.Manufacturer, S.Board.Product].filter(Boolean).join(' ') : null],
+    ['Serial', S.Serial], ['Installed', W.InstallDate],
+  ].filter(r => r[1]);
+
+  // verdict lines: one per area, plain language, click to open the section
+  const v = [];
+  const outOfSupport = String(W.SupportState || '').startsWith('OUT');
+  v.push({ lv: outOfSupport ? 'high' : 'ok', topic: 'Windows', text: `${W.Product || 'Windows'} ${W.Version || ''}: ${(W.SupportState || 'support status unknown').replace(/^OUT OF SUPPORT/, 'out of support')}`, go: 'wu' });
+  if (B.Latest) v.push({ lv: /newer/i.test(B.Status || '') ? 'medium' : 'ok', topic: 'BIOS', text: /newer/i.test(B.Status || '') ? `${B.Installed} installed, ${B.Latest.Version} available (${B.Latest.Date})` : `${B.Installed || BI.Version}, up to date`, go: 'updates' });
+  else v.push({ lv: 'info', topic: 'BIOS', text: `${BI.Version || '?'}${BI.ReleaseDate ? ' from ' + BI.ReleaseDate : ''}${A.Online ? ': latest version could not be checked' : ''}`, go: A.Online ? 'updates' : 'system' });
+  v.push({ lv: probDevs.length ? 'high' : 'ok', topic: 'Devices', text: probDevs.length ? `${probDevs.length} device${probDevs.length > 1 ? 's' : ''} reporting a problem: ${probDevs.slice(0, 3).map(d => d.Name).join(', ')}${probDevs.length > 3 ? ', …' : ''}` : 'All connected devices are working', go: 'devices' });
+  const uc = updateCount();
+  v.push({ lv: !A.Online ? 'info' : uc ? 'medium' : 'ok', topic: 'Drivers', text: !A.Online ? 'Online check was not run' : uc ? `${uc} newer driver or firmware version${uc > 1 ? 's' : ''} available` : 'Drivers match the latest versions found', go: 'updates' });
+  const unres = new Set(unresolved.map(u => u.KB || u.Title)).size;
+  v.push({ lv: unres ? 'medium' : 'ok', topic: 'Windows Update', text: unres ? `${unres} failed update${unres > 1 ? 's' : ''} never fixed by a later one` : `No unresolved failures in ${WU.HistoryCount || 0} history entries`, go: 'wu' });
+  const C = A.Crashes || {};
+  v.push({ lv: bsods.length ? 'high' : unexpected() ? 'medium' : 'ok', topic: 'Stability', text: bsods.length ? `${bsods.length} blue screen${bsods.length > 1 ? 's' : ''} on record, last ${String(bsods.map(b => b.Date).sort().pop() || '').slice(0, 10)}` : unexpected() ? `${unexpected()} unexpected restart${unexpected() > 1 ? 's' : ''} in ${M.EventDays} days` : 'No blue screens or unexpected restarts', go: 'crashes' });
+  if (HI.PreviousScan) {
+    const ch = arr(HI.Changes), by = ch.filter(c => c.ByPcAudit).length, np = ch.filter(c => c.Kind === 'New problem').length;
+    v.push({ lv: np ? 'medium' : ch.length ? 'info' : 'ok', topic: 'Changes', go: 'history',
+      text: ch.length ? `${ch.length} change${ch.length > 1 ? 's' : ''} since the scan on ${String(HI.PreviousScan.Date || '').slice(0, 10)}${by ? `, ${by} through or recommended by PC Audit` : ''}${np ? `, ${np} new problem${np > 1 ? 's' : ''}` : ''}` : `Nothing changed since the scan on ${String(HI.PreviousScan.Date || '').slice(0, 10)}` });
+  }
+  if (arr(W.PendingReboot).length) v.push({ lv: 'medium', topic: 'Restart', text: 'A restart is pending: restart before troubleshooting further', go: 'wu' });
+
+  const vline = x => `<button type="button" class="verdict" data-go="${x.go}"><span class="led ${x.lv}"></span><span class="topic">${esc(x.topic)}</span><span>${esc(x.text)}</span><span class="go">Open</span></button>`;
+  const vBad = v.filter(x => x.lv !== 'ok'), vGood = v.filter(x => x.lv === 'ok');
+  el.innerHTML = `
+  <div class="plate">
+    <div class="plate-top">
+      <div><div class="plate-maker">${esc(S.Vendor || '')}${S.IsCustomBuild ? ' motherboard, custom build' : S.Chassis ? ' ' + esc(S.Chassis.toLowerCase()) : ''}</div>
+        <div class="plate-model">${esc(S.FriendlyModel || S.Model || M.Computer || 'Unknown system')}</div></div>
+      <div class="plate-verdict"><b>${esc(verdictText)}</b>${high + med ? `${high} high, ${med} medium priority` : 'Nothing high or medium priority'}</div>
+    </div>
+    <dl class="plate-grid">${plateRows.map(r => `<div><dt>${esc(r[0])}</dt><dd>${esc(r[1])}</dd></div>`).join('')}</dl>
+  </div>
+  <div class="verdicts">${vBad.map(vline).join('') || `<div class="allok" style="border:0;margin:0"><span class="led ok"></span>Every checked area looks fine.</div>`}
+    ${vGood.length ? `<details class="okfold"><summary><span class="led ok" aria-hidden="true"></span>${vGood.length} area${vGood.length === 1 ? '' : 's'} with no issues: ${esc(vGood.map(x => x.topic).join(', '))}</summary>${vGood.map(vline).join('')}</details>` : ''}</div>
+  <h2>Findings</h2>
+  ${findings.length ? `<div class="findings">${findings.map(f => fCard(f, false)).join('')}</div>`
+    : `<div class="panel">${findingsDismissed.length ? (WIN ? `Nothing in the last ${WIN} day${WIN === 1 ? '' : 's'}, and nothing current.` : 'Nothing new. Everything left has been dismissed.') : 'No issues found.'}</div>`}
+  ${findingsDismissed.length ? `<details class="disfold" style="margin-top:12px"><summary>${esc(hiddenLabel(findingsDismissed.length))}</summary><div class="findings">${findingsDismissed.map(f => fCard(f, true)).join('')}</div></details>` : ''}`;
+  el.querySelectorAll('.verdict').forEach(b => b.onclick = () => { show(b.dataset.go); window.scrollTo(0, 0); });
+}
+
+function renderUpdates(el) {
+  const O = A.Online;
+  if (!O) { el.innerHTML = '<div class="panel">Online lookups were not run (scan was started with <span class="mono">-Offline</span>, or the lookup failed. See Scan notes).</div>'; return; }
+  const b = O.Board || {};
+  const L = b.Latest || {}, BT = b.LatestBeta;
+  const link = (u, label) => u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(label)}</a>` : '';
+  el.innerHTML = `
+  <p class="note">Checked against the manufacturers' own download lists on ${esc(String(O.CheckedAt || '').replace('T', ' '))}. Nothing is downloaded or installed automatically.
+    ${HOST ? `Download buttons save files to your Downloads folder, check the digital signature, and then ask you before anything is installed. <a href="#" data-openfolder="">Open the downloads folder</a>` : 'Use the links to get files. Opened from the PC Audit app, these become buttons that download, check and set up each file.'}</p>
+  <div class="cols">
+    <div class="panel"><h2>BIOS / firmware</h2>${kv({
+      'Board': `${b.Vendor || ''} ${b.MatchedProduct || b.Model || ''}`,
+      'Installed': `<b>${esc(b.Installed || '?')}</b>`,
+      'Latest stable': L.Version ? `<b>${esc(L.Version)}</b> (${esc(L.Date || '')}) ${actBtn(L, L.Url, 'Download')}` : null,
+      'Latest beta': BT ? `${esc(BT.Version)} (${esc(BT.Date || '')}). Beta: only if it fixes a problem you have` : null,
+      'Status': statusBadge(b.Status),
+      "What's new": L.Notes ? `<span class="muted">${esc(String(L.Notes).slice(0, 400))}</span>` : null,
+      'Pages': [link(b.PageUrl, 'Product support page'), link(b.BiosPageUrl !== b.PageUrl ? b.BiosPageUrl : null, 'BIOS downloads')].filter(Boolean).join(' &nbsp; ') || null })}
+      ${b.Note ? `<p class="note" style="margin-top:10px">⚠ ${esc(b.Note)}</p>` : ''}
+      ${arr(b.Revisions).length > 1 ? `<p class="note">Revisions: ${arr(b.Revisions).map(r => link(r.Url, r.Name)).join(' · ')}</p>` : ''}
+      <p class="note" style="margin-top:10px">Only flash BIOS files for this exact board (and revision). Never use a BIOS from a different model or manufacturer.</p></div>
+    <div class="panel"><h2>Recent BIOS versions</h2><div id="t-biosv"></div></div>
+  </div>
+  <h2>Drivers from the board maker</h2>
+  <p class="note">The board or PC maker's current driver list compared with what this PC has. Version schemes differ between packages, so some rows are compared by release date or marked for manual comparison.
+    <b>Generic Windows driver</b> means Windows' built-in driver is in use where the maker offers a dedicated one.</p>
+  <div id="t-bdrv"></div>
+  <h2>Microsoft Update Catalog</h2>
+  <p class="note">For each chip, the tool searches the Catalog (newest first) and keeps only drivers made for this Windows version. <b>Newest in installed family</b> means the same driver line this PC already runs, the safe upgrade.
+    <b>Newer branch</b> means a different driver line for the same chip, often a rewrite for newer Windows versions. It works, but treat it as a bigger change.
+    Catalog drivers are Microsoft-signed. ${HOST ? '<b>Download &amp; install</b> does the steps below for you (it creates a restore point and asks first). By hand: download the .cab,' : 'To install one: download the .cab,'} extract it (open it in Explorer and copy the files out, or run <span class="mono">expand -F:* driver.cab C:\\Drivers\\name</span>),
+    then Device Manager → right-click the device → Update driver → Browse my computer → pick that folder.</p>
+  <div id="t-cat"></div>
+  <h2>Graphics drivers</h2><div id="t-gpu2"></div>
+  <h2>All parts</h2><div id="t-parts"></div>
+  ${arr(O.Notes).length ? '<h2>Lookup problems</h2><div id="t-onotes"></div>' : ''}`;
+  table($('#t-biosv', el), arr(b.Versions), [{k:'Version',label:'Version',cls:'mono',render:r => esc(r.Version) + (r.IsBeta ? ' <span class="badge b-info">beta</span>' : '') + (String(r.Version).replace(/^.*v/i,'').replace(/\W/g,'').toUpperCase() === String(b.Installed || '').replace(/\W/g,'').toUpperCase() || r.Version === b.Installed ? ' <span class="badge b-ok">installed</span>' : '')},
+    {k:'Date',label:'Date',cls:'nowrap'},{k:'Notes',label:'Changes',render:r => `<span class="muted">${esc(String(r.Notes || '').slice(0, 140))}</span>`},{k:'Url',label:'',render:r => link(r.Url, 'Download')}], { sortKey:'Date', dir:-1, empty:'No BIOS list available' });
+  const rank = s => /^(Newer|Generic)/.test(s) ? 0 : /^Probably newer/.test(s) ? 1 : /manually/.test(s) ? 2 : /Up to date|Installed is newer/.test(s) ? 3 : 4;
+  table($('#t-bdrv', el), arr(O.BoardDrivers), [
+    {k:'Status',label:'Status',sort:r => rank(r.Status),render:r => statusBadge(r.Status)},{k:'Category',label:'Type'},{k:'Name',label:"Maker's driver"},
+    {k:'Version',label:'Version',cls:'mono'},{k:'Date',label:'Released',cls:'nowrap'},
+    {k:'InstalledVersion',label:'On this PC',render:r => r.InstalledName ? `<span class="mono">${esc(r.InstalledVersion || '')}</span><div class="muted">${esc(r.InstalledName)}${r.InstalledDate ? ', ' + esc(r.InstalledDate) : ''}</div>` : '<span class="muted">—</span>'},
+    {k:'Url',label:'',render:r => actBtn(r, r.Url, 'Download')}], { sortKey:'Status', empty:'No driver list was found for this board/system',
+      isOk: r => /^(Up to date|Installed is newer|Optional software|Not detected)/.test(r.Status),
+      okLabel: n => `${n} driver${n === 1 ? '' : 's'} up to date, optional or not used on this PC`, allOkText: "This PC's drivers match the board maker's list." });
+  const catRows = devices.filter(d => d.Catalog);
+  const crank = s => /^Newer version|Vendor driver/.test(s) ? 0 : /branch/.test(s) ? 1 : /Up to date/.test(s) ? 2 : 3;
+  const cl = (e, d) => e ? `<a href="${esc(e.Url)}" target="_blank" rel="noopener" class="mono" title="Catalog details page">${esc(e.Version)}</a><div class="muted">${esc(e.Date || '')}</div>${d && d.Version === e.Version ? '<div class="muted">installed</div>' : e.DownloadUrl ? `<div style="margin-top:4px">${actBtn(e, e.DownloadUrl, '.cab')}</div>` : ''}` : '<span class="muted">—</span>';
+  table($('#t-cat', el), catRows, [
+    {k:'Status',label:'Status',sort:d => crank(d.Catalog.Status),render:d => statusBadge(d.Catalog.Status)},
+    {k:'Name',label:'Device'},
+    {k:'Version',label:'Installed',render:d => `<span class="mono">${esc(d.Version || '—')}</span><div class="muted">${esc(d.Date || '')}</div>`},
+    {k:'Fam',label:'Newest (same family)',render:d => cl(d.Catalog.FamilyLatest, d)},
+    {k:'All',label:'Newest overall',render:d => !d.Catalog.NewestOverall ? '<span class="muted">—</span>' : (!d.Catalog.FamilyLatest || d.Catalog.NewestOverall.Version !== d.Catalog.FamilyLatest.Version) ? cl(d.Catalog.NewestOverall, d) : '<span class="muted">same</span>'},
+    {k:'Exact',label:'For this exact board',render:d => cl(d.Catalog.ExactBoardLatest, d)},
+    {k:'S',label:'',render:d => `<a href="${esc(d.Catalog.SearchUrl)}" target="_blank" rel="noopener">Catalog search</a>`}
+  ], { sortKey:'Status', empty:'Catalog check was skipped or found no devices to check',
+      isOk: d => /^(Up to date|Not found)/.test(d.Catalog.Status),
+      okLabel: n => `${n} device${n === 1 ? '' : 's'} up to date or not listed in the Catalog`, allOkText: 'No newer Catalog drivers for the checked devices.' });
+  table($('#t-gpu2', el), arr(O.GPUs), [{k:'Status',label:'Status',render:r => statusBadge(r.Status)},{k:'Name',label:'GPU'},
+    {k:'VendorVersion',label:'Installed',cls:'mono',render:r => esc(r.VendorVersion || r.InstalledVersion || '') + (r.InstalledDate ? `<div class="muted">${esc(r.InstalledDate)}</div>` : '')},
+    {k:'Latest',label:'Latest',cls:'mono',render:r => r.Latest ? `${esc(r.Latest.Version)}<div class="muted">${esc(r.Latest.Date || '')} · ${esc(r.Latest.Name || '')}</div>${r.Latest.ActionId ? `<div style="margin-top:4px">${actBtn(r.Latest, r.Latest.DownloadUrl, 'Download')}</div>` : ''}` : ''},
+    {k:'Links',label:'',render:r => linkList(r.Links)}], { empty:'No graphics adapters', isOk: r => r.Status === 'Up to date' && !r.Latest?.ActionId,
+      okLabel: n => `${n} graphics driver${n === 1 ? '' : 's'} up to date`, allOkText: 'Graphics drivers are up to date or need a manual check below.' });
+  table($('#t-parts', el), arr(O.Parts), [{k:'Part',label:'Part'},{k:'Model',label:'Model'},{k:'Links',label:'Links',render:r => linkList(r.Links)}], { empty:'No parts' });
+  if (arr(O.Notes).length) table($('#t-onotes', el), arr(O.Notes), [{k:'Source',label:'Source'},{k:'Message',label:'Problem'},{k:'Url',label:'URL',cls:'mono'}]);
+}
+
+function renderHistory(el) {
+  const P = HI.PreviousScan, ch = arr(HI.Changes), inst = arr(HI.DriverInstalls), dls = arr(HI.Downloads).slice().reverse();
+  const since = P ? String(P.Date || '').slice(0, 10) : null;
+  const cut = P ? String(P.Date || '') : new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 19);
+  const kindLv = k => /problem fixed/i.test(k) ? 'ok' : /new problem|rolled back/i.test(k) ? 'medium' : /removed/i.test(k) ? 'info' : 'low';
+  const folder = HI.DownloadsFolder || '';
+  el.innerHTML = `
+  ${P ? `<p class="note">Compared with the previous scan of this PC on <b>${esc(String(P.Date || '').replace('T', ' ').slice(0, 16))}</b>. Each change says who made it:
+      <span class="badge pcabadge">PC Audit</span> marks changes installed through PC Audit or matching a version PC Audit recommended last time.</p>`
+    : `<div class="panel">This is the first scan of this PC that PC Audit can find. Next time, this page shows what changed in between and whether PC Audit's recommendations were followed.
+      Reports are kept in <span class="mono">Documents\\PC Audit reports</span>; keep them there so the history works.</div>`}
+  ${P ? '<h2>Since the last scan</h2><div id="t-chg"></div>' : ''}
+  <h2>Downloads through PC Audit</h2>
+  <div class="dlbar"><span>Files are kept in</span><span class="mono">${esc(folder)}</span>${HOST ? '<button type="button" class="act quiet" data-openfolder="">Open folder</button>' : ''}</div>
+  <div id="t-dl"></div>
+  <h2>Driver installs recorded by Windows</h2>
+  <p class="note">From Windows' own device install log (setupapi.dev.log). <b>How</b> is Windows' record of what started the install: device detected (plug and play or Windows Update), Device Manager, or an installer / pnputil.</p>
+  <div id="t-inst"></div>`;
+  if (P) table($('#t-chg', el), ch, [
+    {k:'Kind',label:'Change',render:r => `<span class="badge b-${kindLv(r.Kind)}">${esc(r.Kind)}</span>`},
+    {k:'Item',label:'Device / item'},
+    {k:'From',label:'Was',cls:'mono'}, {k:'To',label:'Now',cls:'mono'},
+    {k:'Source',label:'Why / by',render:r => (r.ByPcAudit ? '<span class="badge pcabadge flag">PC Audit</span> ' : '') + `<span class="${r.ByPcAudit ? '' : 'muted'}">${esc(r.Source || '')}</span>`},
+    {k:'When',label:'When',cls:'nowrap',render:r => esc(String(r.When || '').replace('T', ' ').slice(0, 16))}
+  ], { empty:'Nothing changed since the last scan.' });
+  table($('#t-dl', el), dls, [
+    {k:'Time',label:'When',cls:'nowrap',render:r => esc(String(r.Time || '').replace('T', ' ').slice(0, 16))},
+    {k:'Title',label:'Update',render:r => esc(r.Title || ACTS[r.ActionId]?.Title || r.ActionId || '')},
+    {k:'Stage',label:'Step',render:r => esc({Prepare:'Download & check',Install:'Install',Launch:'Open installer'}[r.Stage] || r.Stage)},
+    {k:'Ok',label:'Result',render:r => !r.Ok ? `<span class="badge b-high">Failed</span> <span class="muted">${esc(r.Error || '')}</span>`
+        : r.Stage === 'Prepare' ? `<span class="badge b-${/^(install|launch)$/.test(r.Next) ? 'ok' : 'medium'}">${esc({install:'Ready to install',launch:'Ready to open',manual:'Manual step',blocked:'Blocked'}[r.Next] || r.Next || 'Done')}</span>${r.Note ? ` <span class="muted">${esc(r.Note)}</span>` : ''}`
+        : `<span class="badge b-ok">${esc(r.Outcome || 'Done')}</span>`},
+    {k:'Signer',label:'Signed by',render:r => esc(r.Signer || '')},
+    {k:'Folder',label:'',render:r => r.Folder && HOST ? `<button type="button" class="act quiet" data-openfolder="${esc(r.Folder)}">Show files</button>` : ''}
+  ], { empty:'Nothing has been downloaded through PC Audit on this PC yet.' });
+  table($('#t-inst', el), inst, [
+    {k:'Date',label:'When',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16))},
+    {k:'Device',label:'Device'}, {k:'Version',label:'Driver version',cls:'mono'},
+    {k:'Provider',label:'Provider'}, {k:'Method',label:'How'}, {k:'Inf',label:'INF',cls:'mono'}
+  ], { sortKey:'Date', dir:-1, empty:'Windows has no successful driver installs on record (or the log could not be read).',
+       isOk: r => String(r.Date || '') < cut, okLabel: n => `${n} older install${n === 1 ? '' : 's'}${since ? ' from before ' + since : ' (over 90 days ago)'}`,
+       allOkText: since ? 'No driver installs since the last scan.' : 'No driver installs in the last 90 days.' });
+}
+
+function renderSystem(el) {
+  const B = S.BIOS || {}, T = S.TPM || {};
+  el.innerHTML = `
+  <div class="cols">
+    <div class="panel"><h2>Computer</h2>${kv({
+      'Maker': S.Vendor, 'Model': S.FriendlyModel, 'Type': S.IsCustomBuild ? 'Custom build (identified by motherboard)' : (S.Chassis || 'Prebuilt'),
+      'Serial / service tag': S.Serial, 'SKU': S.SystemSKU, 'Family': S.SystemFamily,
+      'Motherboard': [S.Board && S.Board.Manufacturer, S.Board && S.Board.Product, S.Board && S.Board.Version].filter(Boolean).join(' '),
+      'Memory': S.MemoryGB != null ? S.MemoryGB + ' GB' : null,
+      'Support': linkList([].concat(
+        (A.Online && A.Online.Board && A.Online.Board.PageUrl) ? [{Label: 'Product page', Url: A.Online.Board.PageUrl}] : [],
+        (A.Online && A.Online.Board && A.Online.Board.BiosPageUrl && A.Online.Board.BiosPageUrl !== A.Online.Board.PageUrl) ? [{Label: 'BIOS downloads', Url: A.Online.Board.BiosPageUrl}] : [],
+        arr(S.SupportLinks))) })}</div>
+    <div class="panel"><h2>Firmware</h2>${kv({
+      'BIOS version': B.Version,
+      'Latest from maker': (A.Online && A.Online.Board && A.Online.Board.Latest) ? `<b>${esc(A.Online.Board.Latest.Version)}</b> (${esc(A.Online.Board.Latest.Date || '')}) ${statusBadge(A.Online.Board.Status)}` : null,
+      'BIOS date': B.ReleaseDate ? `${B.ReleaseDate} (${(B.AgeDays / 365).toFixed(1)} years old)` : null, 'BIOS vendor': B.Vendor,
+      'Boot mode': B.FirmwareType, 'Secure Boot': B.SecureBoot == null ? null : (B.SecureBoot ? 'On' : 'Off'), 'SMBIOS': B.SMBIOS,
+      'TPM': T.Present ? `Present, spec ${T.SpecVersion || '?'}, firmware ${T.ManufacturerVersion || '?'}` : (T.Note || 'Not detected'),
+      'CPU microcode': arr(H.CPU)[0] && arr(H.CPU)[0].Microcode })}
+      <p class="note" style="margin-top:10px">Only flash BIOS files made for this exact model. Never use firmware from another manufacturer or model.</p></div>
+  </div>
+  <h2>Processor</h2><div id="t-cpu"></div>
+  <h2>Memory modules</h2><div id="t-ram"></div>
+  <h2>Graphics</h2><div id="t-gpu"></div>
+  <h2>Disks</h2><div id="t-disk"></div>
+  <h2>Volumes</h2><div id="t-vol"></div>`;
+  table($('#t-cpu', el), arr(H.CPU), [{k:'Name',label:'Name'},{k:'Cores',label:'Cores',cls:'num'},{k:'Threads',label:'Threads',cls:'num'},{k:'MaxMHz',label:'Max MHz',cls:'num'},{k:'Microcode',label:'Microcode',cls:'mono'}]);
+  table($('#t-ram', el), arr(H.Memory), [{k:'Slot',label:'Slot'},{k:'Manufacturer',label:'Maker'},{k:'PartNumber',label:'Part number',cls:'mono'},{k:'CapacityGB',label:'GB',cls:'num'},{k:'SpeedMTs',label:'Rated MT/s',cls:'num'},{k:'ConfiguredMTs',label:'Running MT/s',cls:'num'}]);
+  table($('#t-gpu', el), arr(H.GPU), [{k:'Name',label:'Name'},{k:'DriverVersion',label:'Driver',cls:'mono'},{k:'DriverDate',label:'Driver date'},{k:'Resolution',label:'Resolution'},{k:'Status',label:'Status'}]);
+  table($('#t-disk', el), arr(H.Disks), [{k:'Name',label:'Name'},{k:'BusType',label:'Bus'},{k:'MediaType',label:'Type'},{k:'SizeGB',label:'GB',cls:'num'},{k:'Firmware',label:'Firmware',cls:'mono'},
+    {k:'Health',label:'Health',render:r => r.Health === 'Healthy' ? `<span class="badge b-ok">Healthy</span>` : `<span class="badge b-high">${esc(r.Health)}</span>`},
+    {k:'Wear',label:'Wear / temp',render:r => r.Reliability ? `${r.Reliability.WearPercent ?? '?'}% / ${r.Reliability.TemperatureC ?? '?'}°C` : '<span class="muted">admin needed</span>'},
+    {k:'Links',label:'',render:r => linkList(r.Links)}]);
+  table($('#t-vol', el), arr(H.Volumes), [{k:'Drive',label:'Drive'},{k:'Label',label:'Label'},{k:'FileSystem',label:'FS'},{k:'SizeGB',label:'Size GB',cls:'num'},{k:'FreeGB',label:'Free GB',cls:'num'},
+    {k:'FreePct',label:'Free',cls:'num',render:r => r.FreePct != null ? `<span class="badge b-${r.FreePct < 10 ? 'high' : r.FreePct < 20 ? 'medium' : 'ok'}">${r.FreePct}%</span>` : ''}]);
+}
+
+function renderDevices(el) {
+  const classes = [...new Set(devices.map(d => d.Class).filter(Boolean))].sort();
+  el.innerHTML = `<p class="note">Click a row for hardware IDs and details. <b>Catalog: this board</b> searches the Microsoft Update Catalog for drivers published for this chip on this exact system or board, so it is often empty.
+    <b>Catalog: same chip, any maker</b> searches every driver published for the chip by any maker. These usually work but can lose maker-specific features (audio tuning, hotkeys, power management).
+    Devices on built-in Windows drivers (mouse/keyboard interfaces, disks, USB hubs) get no Catalog link because Microsoft publishes no separate driver for them. An empty Catalog search is a normal answer, not a tool error.</p>`;
+  const tb = filterBox('Search name, vendor, version, hardware ID…', draw, `
+    <label><input type="checkbox" id="f-hw" checked> Hardware only</label>
+    <label><input type="checkbox" id="f-present" checked> Connected only</label>
+    <select id="f-class"><option value="">All classes</option>${classes.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+    <span class="muted" id="f-n"></span>`);
+  el.appendChild(tb);
+  const host = document.createElement('div'); el.appendChild(host);
+  const flagRank = d => { const f = arr(d.Flags); return f.includes('Problem') || f.includes('NoDriver') ? 0 : f.includes('GenericDriver') || f.includes('Unsigned') ? 1 : (d.Catalog && /Newer version|Vendor driver/.test(d.Catalog.Status)) ? 1.5 : f.includes('OldDriver') ? 2 : 3; };
+  function draw() {
+    const q = $('input[type=search]', tb).value, hw = $('#f-hw', tb).checked, pr = $('#f-present', tb).checked, cl = $('#f-class', tb).value;
+    const rows = devices.filter(d => (!hw || d.IsHardware) && (!pr || d.Present) && (!cl || d.Class === cl) &&
+      textMatch(d, q));
+    $('#f-n', tb).textContent = `${rows.length} of ${devices.length}`;
+    table(host, rows, [
+      {k:'Flags',label:'Status',sort:flagRank,render:d => (arr(d.Flags).map(flagBadge).join('') + catBadge(d)) || (d.Catalog && d.Catalog.Status === 'Up to date' ? '<span class="badge b-ok">Up to date</span>' : d.Catalog && d.Catalog.Status === 'Not found in Catalog' ? '<span class="badge b-ok">No problems</span><div class="muted" style="font-size:11px">not in MS Catalog</div>' : '<span class="badge b-ok">No problems</span>')},
+      {k:'Name',label:'Device'},{k:'Class',label:'Class'},
+      {k:'ChipVendor',label:'Chip / board',render:d => esc(d.ChipVendor || '') + (d.BoardVendorFromSubsys && d.BoardVendorFromSubsys !== d.ChipVendor ? `<div class="muted">board: ${esc(d.BoardVendorFromSubsys)}</div>` : '')},
+      {k:'Provider',label:'Driver by'},{k:'Version',label:'Version',cls:'mono'},
+      {k:'Date',label:'Driver date',cls:'nowrap',render:d => d.Date ? `${esc(d.Date)}${d.AgeYears != null && !/^Microsoft/.test(d.Provider || '') ? `<div class="muted">${d.AgeYears} years</div>` : /^Microsoft/.test(d.Provider || '') ? '<div class="muted">Windows inbox</div>' : ''}` : ''},
+      {k:'Links',label:'Find updates',render:d => linkList(d.Links) + (d.CatalogNote ? `<div class="muted" style="font-size:12px">${esc(d.CatalogNote)}</div>` : '')}
+    ], { sortKey: 'Flags', empty: 'No devices match the filter', forceOpen: !!q,
+         isOk: d => !arr(d.Flags).some(f => !['NotPresent','Disabled'].includes(f)) && !(d.Catalog && /^(Newer|Vendor driver)/.test(d.Catalog.Status)),
+         okLabel: n => `${n} device${n === 1 ? '' : 's'} with no issues`, allOkText: 'No devices need attention.',
+         detail: d => kv({
+      'Problem': d.Problem, 'Hardware IDs': `<pre>${esc(arr(d.HardwareIds).join('\n'))}</pre>`, 'Compatible IDs': arr(d.CompatibleIds).length ? `<pre>${esc(arr(d.CompatibleIds).join('\n'))}</pre>` : null,
+      'MS Catalog': d.Catalog ? catSummary(d) : null,
+      'Instance ID': d.InstanceId, 'Chip ID': d.ChipId, 'Subsystem': d.SubSys, 'INF': d.Inf, 'Signer': d.Signer, 'Service': d.Service, 'Device maker': d.DeviceManufacturer, 'Status': d.Status }) });
+  }
+  draw();
+}
+
+function renderWU(el) {
+  const pol = W.UpdatePolicy || {};
+  const pending = WU.Pending;
+  el.innerHTML = `
+  <div class="cols">
+    <div class="panel"><h2>Windows</h2>${kv({ 'Product': W.Product, 'Edition': W.Edition, 'Version': W.Version, 'Build': W.FullBuild,
+      'Support': `<span class="badge b-${String(W.SupportState || '').startsWith('OUT') ? 'high' : 'ok'}">${esc(W.SupportState)}</span>`,
+      'Installed': W.InstallDate, 'Last boot': W.LastBoot && `${W.LastBoot.replace('T', ' ')} (${W.UptimeHours} h ago)`,
+      'Pending restart': arr(W.PendingReboot).length ? `<span class="badge b-medium">${esc(arr(W.PendingReboot).join('; '))}</span>` : 'No' })}</div>
+    <div class="panel"><h2>Update settings</h2>${Object.keys(pol).length ? kv(pol) : '<span class="muted">Default settings (no policies found)</span>'}
+      <p class="note" style="margin-top:10px">Update history on record since ${esc(WU.HistoryStarts || '?')} (${WU.HistoryCount || 0} entries). Feature upgrades can clear older history.</p></div>
+  </div>
+  ${arr(W.PendingFileRenames).length ? `<h2>Files waiting for a restart</h2>
+  <p class="note">${{
+    'Re-added after restart': `These entries were already there before the last restart (${esc(String(W.LastBoot || '').replace('T', ' ').slice(0, 16))}), so a program puts them back after every boot. They don't mean a restart is needed. The folder shows which program it is.`,
+    'Cleanup only': 'Only temporary-file cleanups that Windows does at the next restart. Many programs leave these, and some add new ones after every boot. They don\'t mean a restart is needed.',
+    'Restart needed': 'Files that an installer or driver update replaces at the next restart. Restart, then scan again. If the same entries come back, a program is re-adding them.'
+  }[W.PendingFileRenameState] || ''}</p><div id="t-pfro"></div>` : ''}
+  <h2>Upgrade history</h2><p class="note">Earlier Windows versions this installation was upgraded from.</p><div id="t-upg"></div>
+  <h2>Failed updates and what happened next</h2>
+  <p class="note"><b>Superseded</b>: a later cumulative or replacement update installed successfully, so this failure no longer matters. <b>Resolved</b>: the same update installed later.
+    <b>Unresolved</b>: nothing later replaced it. Check whether it still applies.</p>
+  <div id="f-fail"></div><div id="t-fail"></div><div id="d-fail"></div>
+  <h2>Currently offered by Windows Update</h2>
+  ${pending == null ? '<p class="note">Not checked. Run the scan with <span class="mono">-CheckWindowsUpdate</span> to ask Windows Update what is waiting (read-only).</p>' : '<div id="t-pend"></div>'}
+  <h2>Update failure events (System log)</h2><div id="t-wuev"></div>
+  <h2>Full update history</h2><div id="f-hist"></div><div id="t-hist"></div>`;
+  if (arr(W.PendingFileRenames).length) table($('#t-pfro', el), arr(W.PendingFileRenames), [
+    {k:'Action',label:'At restart',render:r => `<span class="badge b-${r.Cleanup || W.PendingFileRenameState !== 'Restart needed' ? 'info' : 'medium'}">${r.Action === 'Delete' ? 'Delete' : 'Replace'}</span>`},
+    {k:'From',label:'File',cls:'mono'},{k:'To',label:'Replaces',cls:'mono',render:r => esc(r.To || '')}],
+    { isOk: r => r.Cleanup, okLabel: n => `${n} temporary-file cleanup${n === 1 ? '' : 's'}`, allOkText: 'Only temporary-file cleanups.' });
+  table($('#t-upg', el), arr(W.UpgradeHistory), [{k:'Product',label:'Product'},{k:'Version',label:'Version'},{k:'Build',label:'Build',cls:'mono'},{k:'InstalledOn',label:'Installed'},{k:'ReplacedOn',label:'Upgraded away on'}], {empty:'No previous versions recorded (clean install or history cleared)'});
+
+  const failCols = [{k:'Date',label:'Date',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16))},{k:'Title',label:'Update'},{k:'Category',label:'Type'},
+    {k:'HResult',label:'Error',cls:'mono'},{k:'FailCount',label:'Fails',cls:'num'},{k:'Resolution',label:'Outcome',render:r => resBadge(r.Resolution)}];
+  const failDetail = r => kv({ 'Error meaning': r.ErrorMeaning, 'Outcome': r.ResolutionDetail, 'KB': r.KB && `<a target="_blank" rel="noopener" href="https://support.microsoft.com/help/${esc(r.KB.replace('KB', ''))}">${esc(r.KB)}</a>` });
+  const ftb = filterBox('Search failures…', drawFail);
+  $('#f-fail', el).appendChild(ftb);
+  function drawFail() {
+    const q = $('input[type=search]', ftb).value;
+    table($('#t-fail', el), failures.filter(f => textMatch(f, q)), failCols.concat([{k:'_d',label:'',render:r => ['Unresolved','Still pending'].includes(r.Resolution) ? disBtn([r.Key], r.Title) : ''}]),
+      { sortKey: 'Date', dir: -1, detail: failDetail, empty: 'No failed updates in history', forceOpen: !!q,
+        isOk: f => !['Unresolved','Still pending'].includes(f.Resolution),
+        okLabel: n => `${n} failure${n === 1 ? '' : 's'} later fixed or replaced by another update`, allOkText: 'Every failed update was later fixed or replaced.' });
+  }
+  drawFail();
+  dismissedFold($('#d-fail', el), failuresDismissed, failCols, { keys: r => [r.Key], sortKey:'Date', dir:-1 });
+  if (pending != null) table($('#t-pend', el), arr(pending), [{k:'Type',label:'Type'},{k:'Title',label:'Update'},{k:'Category',label:'Category'},{k:'Released',label:'Released'},{k:'SizeMB',label:'MB',cls:'num'},{k:'Severity',label:'Severity'}],
+    { empty: 'Nothing waiting. Windows Update has no pending updates or drivers.', detail: r => kv({ 'Driver hardware ID': r.DriverHardwareID, 'Driver class': r.DriverClass, 'Driver maker': r.DriverManufacturer, 'Model': r.DriverModel, 'Driver date': r.DriverDate, 'Downloaded': r.Downloaded }) });
+  table($('#t-wuev', el), arr(WU.FailureEvents), [{k:'Date',label:'Date',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16))},{k:'Code',label:'Error',cls:'mono'},{k:'ErrorMeaning',label:'Meaning'},{k:'Message',label:'Message'}], { sortKey:'Date', dir:-1, empty:'No failure events in the System log' });
+  const hist = arr(WU.History);
+  const htb = filterBox('Search history…', drawHist); $('#f-hist', el).appendChild(htb);
+  function drawHist() {
+    const q = $('input[type=search]', htb).value;
+    table($('#t-hist', el), hist.filter(h => textMatch(h, q)), [{k:'Date',label:'Date',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16))},{k:'Title',label:'Update'},{k:'Category',label:'Type'},{k:'Operation',label:'Op'},
+      {k:'Result',label:'Result',render:r => `<span class="badge b-${/Succeeded/.test(r.Result) ? 'ok' : /Failed|Aborted/.test(r.Result) ? 'high' : 'info'}">${esc(r.Result)}</span>`},{k:'HResult',label:'Code',cls:'mono'}],
+      { sortKey:'Date', dir:-1, empty:'No update history', forceOpen: !!q,
+        isOk: r => !/Failed|Aborted/.test(r.Result), okLabel: n => `${n} successful or other entr${n === 1 ? 'y' : 'ies'}`, allOkText: 'No failed entries in the update history.' });
+  }
+  drawHist();
+}
+
+function renderEvents(el) {
+  const cats = [...new Set(eventIssues.map(e => e.Category))].sort();
+  el.innerHTML = `<p class="note">Errors and critical events from the last ${esc((A.Meta || {}).EventDays)} days, grouped by source and event ID. Warnings are included only when they match a known driver or hardware pattern. Click a row for the sample message.</p>`;
+  const tb = filterBox('Search events…', draw, `<select id="e-cat"><option value="">All categories</option>${cats.map(c => `<option>${esc(c)}</option>`).join('')}</select>
+`);
+  el.appendChild(tb); const host = document.createElement('div'); el.appendChild(host);
+  const rank = {high:0, medium:1, low:2, info:3};
+  const evCols = [
+      {k:'Severity',label:'Severity',sort:r => rank[r.Severity],render:r => sevBadge(r.Severity) + backBadge([r.Key], r.Last)},{k:'Category',label:'Category'},{k:'Provider',label:'Source'},{k:'Id',label:'ID',cls:'num'},
+      {k:'Count',label:'Count',cls:'num',render:r => esc(r.Count) + (r.Logged ? `<div class="muted" title="Windows Error Reporting re-logs queued reports, so the same dump can appear many times">logged ${esc(r.Logged)} times</div>` : '')},
+      {k:'Last',label:'Last seen',cls:'nowrap',render:r => esc(String(r.Last || '').replace('T', ' ').slice(0, 16))},
+      {k:'Hint',label:'What it means',render:r => esc(r.Hint || '') + (arr(r.RelatedDevices).length ? `<div class="muted">Device: ${esc(arr(r.RelatedDevices).join(', '))}</div>` : '')}];
+  const disHost = document.createElement('div'); el.appendChild(disHost);
+  dismissedFold(disHost, eventsDismissed, evCols, { keys: r => [r.Key] });
+  function draw() {
+    const q = $('input[type=search]', tb).value, c = $('#e-cat', tb).value;
+    table(host, eventIssues.filter(e => (!c || e.Category === c) && textMatch(e, q)), evCols.concat([{k:'_d',label:'',render:r => r.Severity === 'info' ? '' : disBtn([r.Key], `${r.Provider} event ${r.Id}`)}]), { sortKey:'Severity', empty:'No matching events', forceOpen: !!q, isOk: r => r.Severity === 'info' || r.Category === 'Known noise',
+         okLabel: n => `${n} known harmless event type${n === 1 ? '' : 's'}`, allOkText: 'No driver or hardware errors found in the event logs.',
+         detail: r => kv({ 'First seen': String(r.First || '').replace('T', ' '), 'Log': r.Log, 'Level': r.Level, 'Sample message': `<pre>${esc(r.Sample)}</pre>` }) });
+  }
+  draw();
+}
+
+function renderCrashes(el) {
+  const C = A.Crashes || {};
+  const rel = arr(A.Reliability);
+  const relCols = ['Blue screen','Unexpected shutdown','Hardware/GPU hang','Update failed','Update installed','App crash','App hang'];
+  el.innerHTML = `
+  <div class="stats">
+    <div class="stat"><span class="led ${bsods.length ? 'high' : 'ok'}"></span><b>${bsods.length}</b> blue screen${bsods.length === 1 ? '' : 's'} on record${bsodsDismissed.length ? ` <span class="muted">(${bsodsDismissed.length} dismissed)</span>` : ''}</div>
+    <div class="stat"><span class="led ${unexpected() ? 'medium' : 'ok'}"></span><b>${unexpected() || 0}</b> unexpected restart${unexpected() === 1 ? '' : 's'} in the last ${esc((A.Meta || {}).EventDays)} days</div>
+    <div class="stat"><span class="led info"></span><b>${arr(C.Dumps).length}</b> dump file${arr(C.Dumps).length === 1 ? '' : 's'} on disk</div>
+  </div>
+  <h2>Blue screens (bugchecks)</h2>
+  ${bsods.length && HOST ? `<div class="dlbar"><span>Fixed the cause? Hide these ${bsods.length} blue screen${bsods.length === 1 ? '' : 's'}. A new one will still show up.</span>${disBtn(['crashes'], 'Blue screens up to ' + String(bsods[0].Date || '').slice(0, 10))}</div>` : ''}
+  <div id="t-bsod"></div><div id="d-bsod"></div>
+  <p class="note">To find the driver at fault, open a minidump in WinDbg (<span class="mono">!analyze -v</span>) or a dump viewer such as BlueScreenView. 0x116/0x117 point to graphics, 0x124 to hardware (CPU, RAM, PCIe, overclock), 0x9F to driver power handling (sleep/resume), and 0x133 to a slow driver (often storage or network).</p>
+  <h2>Dump files</h2><div id="t-dump"></div>
+  <h2>Reliability history (12 months)</h2><p class="note">From Windows Reliability Monitor, which usually keeps about a year, longer than the event logs.</p><div id="t-rel"></div>`;
+  const bCols = [{k:'Date',label:'Date',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16)) + backBadge(['crashes'], r.Date)},{k:'Code',label:'Code',cls:'mono'},{k:'Name',label:'Name'},{k:'Parameters',label:'Parameters',cls:'mono'},{k:'Dump',label:'Dump',cls:'mono'}];
+  table($('#t-bsod', el), bsods, bCols, { sortKey:'Date', dir:-1, empty: bsodsDismissed.length ? 'No blue screens since you dismissed the earlier ones' : 'No blue screens recorded' });
+  dismissedFold($('#d-bsod', el), bsodsDismissed, bCols, { keys: () => ['crashes'], sortKey:'Date', dir:-1 });
+  table($('#t-dump', el), arr(C.Dumps), [{k:'Date',label:'Date',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16))},{k:'Type',label:'Type'},{k:'SizeMB',label:'MB',cls:'num'},{k:'Path',label:'Path',cls:'mono'}], { sortKey:'Date', dir:-1, empty:'No dump files found (or not run as administrator)' });
+  const heat = (v, bad) => v ? `<span class="heat badge b-${bad ? (v > 2 ? 'high' : 'medium') : 'info'}">${v}</span>` : '<span class="muted">·</span>';
+  table($('#t-rel', el), rel, [{k:'Month',label:'Month'}].concat(relCols.map(c => ({k:c,label:c,cls:'num',render:r => heat(r[c], !['Update installed','App crash','App hang'].includes(c))}))), { sortKey:'Month', dir:-1, empty:'No reliability data' });
+}
+
+function renderLogs(el) {
+  const SL = A.ServicingLogs || {}, CBS = SL.CBS || {};
+  el.innerHTML = `
+  <h2>Driver install failures (setupapi.dev.log)</h2><p class="note">Driver installs that ended without SUCCESS. Click a row for the error lines.</p>
+  ${diFailures.length && HOST ? `<div class="dlbar"><span>Old failures you've dealt with? Hide them. New failures will still show up.</span>${disBtn(['setupapi'], 'Driver install failures up to ' + String(diFailures[0].Date || '').slice(0, 10))}</div>` : ''}
+  <div id="t-di"></div><div id="d-di"></div>
+  <h2>Feature upgrade logs (Panther)</h2>
+  ${SL.RollbackFolderPresent ? '<div class="panel"><span class="badge b-high">Rollback detected</span> A feature upgrade failed and was rolled back. Run <a target="_blank" rel="noopener" href="' + esc(SL.SetupDiagUrl) + '">SetupDiag</a> for the exact cause.</div>' : ''}
+  <div id="t-pan"></div>
+  <h2>Component store / servicing errors (CBS.log)</h2>
+  ${CBS.Readable ? '' : `<p class="note">CBS.log could not be read${CBS.Note ? ' (' + esc(CBS.Note) + ')' : ''}. Run as administrator.</p>`}
+  <div id="t-cbs"></div>
+  ${arr(CBS.SfcDismMarkers).length ? `<div class="panel"><b>Last SFC/DISM results found in log</b><pre>${esc(arr(CBS.SfcDismMarkers).join('\n'))}</pre></div>` : ''}
+  ${arr(CBS.RecentErrors).length ? `<div class="panel"><b>Most recent error lines</b><pre>${esc(arr(CBS.RecentErrors).join('\n'))}</pre></div>` : ''}`;
+  const diCols = [{k:'Date',label:'Date',cls:'nowrap',render:r => esc(String(r.Date || '').replace('T', ' ').slice(0, 16)) + backBadge(['setupapi'], r.Date)},{k:'Operation',label:'Operation'},{k:'Device',label:'Device'},{k:'Status',label:'Status',cls:'mono'}];
+  table($('#t-di', el), diFailures, diCols,
+    { sortKey:'Date', dir:-1, empty: diDismissed.length ? 'No failed driver installs since you dismissed the earlier ones' : 'No failed driver installs found', detail: r => `<pre>${esc(arr(r.Errors).join('\n') || 'No error lines captured')}</pre>` });
+  dismissedFold($('#d-di', el), diDismissed, diCols, { keys: () => ['setupapi'], sortKey:'Date', dir:-1 });
+  table($('#t-pan', el), arr(SL.Panther), [{k:'Meaning',label:'Log'},{k:'LastWrite',label:'Last written',cls:'nowrap',render:r => esc(String(r.LastWrite || '').replace('T', ' '))},{k:'ErrorLines',label:'Error lines',cls:'num'},{k:'Path',label:'Path',cls:'mono'}],
+    { empty:'No setup error logs present', detail: r => `<pre>${esc(arr(r.LastLines).join('\n') || r.Note || '')}</pre>` });
+  table($('#t-cbs', el), arr(CBS.TopErrors), [{k:'Code',label:'Code',cls:'mono'},{k:'Count',label:'Count',cls:'num'},{k:'Last',label:'Last seen'},{k:'Meaning',label:'Meaning'}], { sortKey:'Count', dir:-1, empty:'No error codes in the readable part of CBS.log' });
+}
+
+function renderNotes(el) {
+  const M = A.Meta || {};
+  el.innerHTML = `<div class="panel">${kv({ 'Tool': `${M.Tool} ${M.Version}`, 'Computer': M.Computer, 'User': M.User, 'Administrator': M.IsAdmin ? 'Yes' : 'No — some sections limited',
+    'Started': M.Started, 'Duration': M.DurationSec != null ? M.DurationSec + ' s' : null, 'Event window': M.EventDays + ' days', 'Windows Update check': M.CheckWindowsUpdate ? 'Yes' : 'No', 'PowerShell': M.PSVersion })}</div>
+    <h2>Collection notes</h2><div id="t-notes"></div>`;
+  table($('#t-notes', el), arr(A.CollectionNotes), [{k:'Section',label:'Section'},{k:'Message',label:'Message'}], { empty:'All sections collected without errors' });
+}
+</script>
+</body>
+</html>
