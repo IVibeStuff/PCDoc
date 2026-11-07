@@ -21,14 +21,14 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("PCDoc")]
 [assembly: AssemblyDescription("Read-only PC health, driver and update scan")]
 [assembly: AssemblyProduct("PCDoc")]
-[assembly: AssemblyVersion("0.4.5.0")]
-[assembly: AssemblyFileVersion("0.4.5.0")]
+[assembly: AssemblyVersion("0.4.6.0")]
+[assembly: AssemblyFileVersion("0.4.6.0")]
 
 namespace PCDoc
 {
     static class Program
     {
-        public const string Version = "0.4.5";
+        public const string Version = "0.4.6";
         public static string AppDir;
 
         [STAThread]

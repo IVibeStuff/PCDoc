@@ -55,7 +55,7 @@ param(
 
 $ErrorActionPreference = 'Continue'
 $ProgressPreference    = 'SilentlyContinue'
-$ToolVersion = '0.4.5'
+$ToolVersion = '0.4.6'
 $script:CollectionNotes = New-Object System.Collections.Generic.List[object]
 
 # ---------------------------------------------------------------------------
@@ -198,6 +198,16 @@ $OemSupport = @{
     'Intel'     = 'https://www.intel.com/content/www/us/en/support.html'
     'Biostar'   = 'https://www.biostar.com.tw/'
     'Supermicro'= 'https://www.supermicro.com/en/support'
+    'Apple'     = 'https://support.apple.com/boot-camp'
+    'Colorful'  = 'https://en.colorful.cn/en/support'
+    'Maxsun'    = 'https://www.maxsun.com/pages/download'
+    'NZXT'      = 'https://nzxt.com/support'
+    'EVGA'      = 'https://www.evga.com/support/download/'
+    'Xiaomi'    = 'https://www.mi.com/global/support/'
+    'LG'        = 'https://www.lg.com/us/support/software-firmware-drivers'
+    'VAIO'      = 'https://us.vaio.com/pages/support'
+    'Panasonic' = 'https://pc-dl.panasonic.co.jp/itn/'
+    'Getac'     = 'https://www.getac.com/en/support/'
 }
 
 # Windows end-of-updates dates (Home/Pro, Enterprise/Education). Checked Nov 2026; verify at
@@ -317,14 +327,14 @@ $Placeholders = @('', 'System manufacturer', 'System Product Name', 'To Be Fille
 function Get-NormalizedVendor([string]$s) {
     if (-not $s) { return $null }
     switch -Regex ($s) {
-        'Dell'                         { return 'Dell' }
+        'Dell|Alienware'               { return 'Dell' }
         'Hewlett|^HP\b|^HP$|\bHP\b'     { return 'HP' }
         'Lenovo'                       { return 'Lenovo' }
         'ASUS|ASUSTeK'                 { return 'ASUS' }
         'Micro-Star|^MSI\b'            { return 'MSI' }
         'Gigabyte'                     { return 'Gigabyte' }
         'ASRock'                       { return 'ASRock' }
-        'Acer'                         { return 'Acer' }
+        'Acer|Gateway|Packard Bell'    { return 'Acer' }
         'Microsoft'                    { return 'Microsoft' }
         'Samsung'                      { return 'Samsung' }
         'Toshiba|Dynabook'             { return 'Dynabook' }
@@ -335,6 +345,16 @@ function Get-NormalizedVendor([string]$s) {
         'Framework'                    { return 'Framework' }
         'Biostar'                      { return 'Biostar' }
         'Supermicro'                   { return 'Supermicro' }
+        '^Apple'                       { return 'Apple' }
+        'Colorful'                     { return 'Colorful' }
+        'Maxsun'                       { return 'Maxsun' }
+        'NZXT'                         { return 'NZXT' }
+        'EVGA'                         { return 'EVGA' }
+        'Xiaomi'                       { return 'Xiaomi' }
+        '^LG Electronics|^LG$'         { return 'LG' }
+        'VAIO'                         { return 'VAIO' }
+        'Panasonic'                    { return 'Panasonic' }
+        'Getac'                        { return 'Getac' }
         '^Intel'                       { return 'Intel' }
         'VMware|innotek|VirtualBox|QEMU|Xen|Parallels' { return 'Virtual machine' }
     }
@@ -1307,7 +1327,7 @@ $script:HttpNotes = New-Object System.Collections.Generic.List[object]
 $script:BrowserUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0'
 function Test-BotChallenge([string]$c) { return ($c -match '_Incapsula_Resource|cf-chl-|<title>Just a moment|challenge-platform') }
 
-function Invoke-Http([string]$Url, [switch]$Json, [string]$Source = '', $Session = $null, [switch]$Quiet) {
+function Invoke-Http([string]$Url, [switch]$Json, [string]$Source = '', $Session = $null, [switch]$Quiet, [switch]$NotFoundOk) {
     $h = @{ 'Accept-Language' = 'en-US,en;q=0.9'; 'Accept' = 'text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7' }
     try {
         $p = @{ Uri = $Url; Headers = $h; UserAgent = $script:BrowserUA; UseBasicParsing = $true; TimeoutSec = 40; ErrorAction = 'Stop' }
@@ -1328,9 +1348,39 @@ function Invoke-Http([string]$Url, [switch]$Json, [string]$Source = '', $Session
     } catch {
         $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
         $msg = if ($code) { "HTTP $code" } else { $_.Exception.Message }
-        $script:HttpNotes.Add([pscustomobject]@{ Source = $Source; Url = $Url; Message = $msg })
+        if (-not ($NotFoundOk -and $code -eq 404)) { $script:HttpNotes.Add([pscustomobject]@{ Source = $Source; Url = $Url; Message = $msg }) }
         return $null
     }
+}
+
+# Downloads an XML catalog that may come as a .cab (Dell, HP) and returns it as [xml]
+function Get-HttpXml([string]$Url, [string]$Source, [switch]$NotFoundOk) {
+    $tmp = Join-Path $env:TEMP ('pcdoc_' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+    try {
+        $f = Join-Path $tmp 'download.bin'
+        try {
+            Invoke-WebRequest -Uri $Url -OutFile $f -UserAgent $script:BrowserUA -UseBasicParsing -TimeoutSec 90 -ErrorAction Stop
+        } catch {
+            $code = $null; try { $code = [int]$_.Exception.Response.StatusCode } catch {}
+            if (-not ($NotFoundOk -and $code -eq 404)) { $script:HttpNotes.Add([pscustomobject]@{ Source = $Source; Url = $Url; Message = $(if ($code) { "HTTP $code" } else { $_.Exception.Message }) }) }
+            return $null
+        }
+        $head = [IO.File]::ReadAllBytes($f) | Select-Object -First 4
+        if ($head.Count -eq 4 -and [Text.Encoding]::ASCII.GetString([byte[]]$head) -eq 'MSCF') {
+            $out = Join-Path $tmp 'x'; New-Item -ItemType Directory -Path $out -Force | Out-Null
+            & "$env:SystemRoot\System32\expand.exe" -F:* $f $out | Out-Null
+            $xmlFile = Get-ChildItem -LiteralPath $out -Recurse -File -Filter *.xml | Sort-Object Length -Descending | Select-Object -First 1
+            if (-not $xmlFile) { $script:HttpNotes.Add([pscustomobject]@{ Source = $Source; Url = $Url; Message = 'The catalog .cab had no XML inside' }); return $null }
+            $f = $xmlFile.FullName
+        }
+        $text = [IO.File]::ReadAllText($f).TrimStart([char]0xFEFF, [char]0xFFFE, [char]0x200B)
+        $i = $text.IndexOf('<'); if ($i -gt 0) { $text = $text.Substring($i) }
+        return [xml]$text
+    } catch {
+        $script:HttpNotes.Add([pscustomobject]@{ Source = $Source; Url = $Url; Message = "Could not read the catalog: $($_.Exception.Message)" })
+        return $null
+    } finally { Remove-Item -LiteralPath $tmp -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 function ConvertFrom-HtmlText([string]$h) {
@@ -1459,7 +1509,7 @@ function Select-NewestOffers($offers) {
 }
 
 function New-BiosResult($vendor, $model) {
-    [ordered]@{ Vendor = $vendor; Model = $model; MatchedProduct = $null; PageUrl = $null; BiosPageUrl = $null
+    [ordered]@{ Vendor = $vendor; Model = $model; MatchedProduct = $null; Source = $null; PageUrl = $null; BiosPageUrl = $null
                 Installed = $script:Audit.System.BIOS.Version; Latest = $null; LatestBeta = $null; NewerCount = $null; Status = 'Not checked'; Note = $null
                 Revisions = @(); Versions = @() }
 }
@@ -1731,6 +1781,196 @@ function Get-GigabyteBoard($product, $boardVersion) {
 }
 
 # --- NVIDIA -----------------------------------------------------------------
+# --- HP (business and many consumer models) -----------------------------------
+# HP publishes a BIOS list per platform: https://ftp.hp.com/pub/pcbios/<SysID>/<SysID>.xml, where SysID is the
+# 4-character board ID Windows reports as the baseboard product (for example 8A3E). Entries: <Rel Ver= Date= Bin= .../>.
+function Get-HpBios($sysId, $model) {
+    $res = New-BiosResult 'HP' $model
+    $res.PageUrl = 'https://support.hp.com/drivers'
+    $res.BiosPageUrl = New-SearchUrl "HP $model BIOS update site:support.hp.com"
+    $id = ([string]$sysId).Trim().ToUpper()
+    if ($id -notmatch '^[0-9A-F]{4}$') { $res.Status = 'Could not read BIOS list'; $res.Note = "Windows doesn't report HP's 4-character platform ID for this PC (board product '$sysId')."; return $null }
+    $res.Source = "HP BIOS list for platform $id"
+    $url = "https://ftp.hp.com/pub/pcbios/$id/$id.xml"
+    $xml = Invoke-Http $url -Source 'HP BIOS list' -NotFoundOk
+    if (-not $xml) { return $null }    # HP keeps lists mostly for business models; Windows Update covers the rest
+    $entries = @(foreach ($m in [regex]::Matches($xml, '(?is)<Rel\b([^>]*)/?>')) {
+        $a = @{}; foreach ($kv in [regex]::Matches($m.Groups[1].Value, '(\w+)\s*=\s*"([^"]*)"')) { $a[$kv.Groups[1].Value.ToLower()] = $kv.Groups[2].Value }
+        if (-not $a.ver) { continue }
+        [pscustomobject]@{ Version = $a.ver; IsBeta = $false; Date = ConvertTo-IsoDate $a.date; Size = $null
+                           Notes = $(if ($a.l -eq '1') { 'HP marks this as an important update' }); Url = $(if ($a.bin) { "https://ftp.hp.com/pub/pcbios/$id/$($a.bin)" }) }
+    })
+    if (-not $entries.Count) { return $null }
+    $entries = @($entries | Sort-Object @{ e = { ConvertTo-VersionSafe (Get-NumericVersion $_.Version) } } -Descending)
+    $res.BiosPageUrl = $url
+    # HP: SMBIOS shows "S70 Ver. 01.12.00" (business) or "F.20" (consumer); the list shows "01.12.00" / "F.20"
+    $norm = { param($v) $x = [string]$v; if ($x -match '(\d+\.\d+(\.\d+)*)\s*$') { $Matches[1] } elseif ($x -match '(\d+)\s*$') { $Matches[1] } else { $x } }
+    Set-BiosStatus $res $script:Audit.System.BIOS.Version $entries $norm $true
+    $res.Note = 'HP BIOS files (.bin) are flashed from the BIOS itself (Update BIOS from a file), with HP''s BIOS update tool, or with the SoftPaq from HP''s support page.'
+    return @{ Board = $res; Drivers = @() }
+}
+
+# --- Dell (Latitude, OptiPlex, Precision, Vostro, XPS and others) ---------------
+# Dell Command Update's catalogs: an index (CatalogIndexPC.cab) points to one catalog per platform, found by
+# the 4-character system ID that Windows reports as the system SKU (for example 0A1F).
+function Get-DellBios($systemId, $model) {
+    $res = New-BiosResult 'Dell' $model
+    $tag = $script:Audit.System.Serial
+    $res.PageUrl = if ($tag) { "https://www.dell.com/support/home/product-support/servicetag/$tag/drivers" } else { 'https://www.dell.com/support/home/' }
+    $res.BiosPageUrl = $res.PageUrl
+    $id = ([string]$systemId).Trim().ToUpper()
+    if ($id -notmatch '^[0-9A-F]{4}$') { return $null }
+    $idx = Get-HttpXml 'https://downloads.dell.com/catalog/CatalogIndexPC.cab' -Source 'Dell catalog index'
+    if (-not $idx) { return $null }
+    $base = 'https://downloads.dell.com/'
+    $bl = $idx.DocumentElement.GetAttribute('baseLocation'); if ($bl) { $base = $(if ($bl -match '^https?://') { $bl } else { "https://$bl" }).TrimEnd('/') + '/' }
+    $path = $null
+    foreach ($g in @($idx.SelectNodes("//*[local-name()='GroupManifest']"))) {
+        $ids = @($g.SelectNodes(".//*[local-name()='Model']") | ForEach-Object { $_.GetAttribute('systemID') })
+        if ($ids -contains $id) {
+            $mi = $g.SelectSingleNode(".//*[local-name()='ManifestInformation']")
+            if ($mi) { $path = $mi.GetAttribute('path') }
+            $disp = $g.SelectSingleNode(".//*[local-name()='Model']/*[local-name()='Display']")
+            if ($disp) { $res.MatchedProduct = "Dell $(([string]$disp.InnerText).Trim())" }
+            $res.Source = "Dell Command Update catalog (system ID $id)"
+            break
+        }
+    }
+    if (-not $path) { return $null }
+    $catUrl = if ($path -match '^https?://') { $path } else { $base + $path.TrimStart('/') }
+    $cat = Get-HttpXml $catUrl -Source 'Dell platform catalog'
+    if (-not $cat) { return $null }
+    $cbase = $base; $cbl = $cat.DocumentElement.GetAttribute('baseLocation'); if ($cbl) { $cbase = $(if ($cbl -match '^https?://') { $cbl } else { "https://$cbl" }).TrimEnd('/') + '/' }
+    $entries = @(); $drivers = New-Object System.Collections.Generic.List[object]
+    foreach ($c in @($cat.SelectNodes("//*[local-name()='SoftwareComponent']"))) {
+        $type = ''; $ct = $c.SelectSingleNode("*[local-name()='ComponentType']"); if ($ct) { $type = $ct.GetAttribute('value') }
+        $name = ''; $nd = $c.SelectSingleNode("*[local-name()='Name']/*[local-name()='Display']"); if ($nd) { $name = ([string]$nd.InnerText).Trim() }
+        $ver = $c.GetAttribute('vendorVersion'); if (-not $ver) { $ver = $c.GetAttribute('dellVersion') }
+        $date = ConvertTo-IsoDate $c.GetAttribute('releaseDate')
+        $url = $cbase + ($c.GetAttribute('path')).TrimStart('/')
+        if ($type -eq 'BIOS') {
+            $entries += [pscustomobject]@{ Version = $ver; IsBeta = $false; Date = $date; Size = $null; Notes = $name; Url = $url }
+        } elseif ($type -in @('DRVR', 'FRMW', 'Driver', 'Firmware') -and $name) {
+            $drivers.Add([pscustomobject]@{ Category = Get-DriverCategory $name; Name = $name; Version = $ver; Date = $date; Url = $url })
+        }
+    }
+    if (-not $entries.Count) { return $null }
+    $entries = @($entries | Sort-Object Date -Descending)
+    Set-BiosStatus $res $script:Audit.System.BIOS.Version $entries { param($v) Get-NumericVersion $v } $true
+    return @{ Board = $res; Drivers = $drivers.ToArray() }
+}
+
+# --- Lenovo (ThinkPad, ThinkCentre, ThinkStation, ThinkBook) --------------------
+# Lenovo's deployment catalog lists the latest BIOS per model, found by the machine type (first 4 characters
+# of the model, for example 20XW from 20XWCTO1WW). Consumer models (IdeaPad, Legion, Yoga) are not in it.
+function Get-LenovoBios($machineModel, $friendly) {
+    $res = New-BiosResult 'Lenovo' $friendly
+    $mt = ([string]$machineModel).Trim().ToUpper(); if ($mt.Length -ge 4) { $mt = $mt.Substring(0, 4) }
+    $res.PageUrl = "https://pcsupport.lenovo.com/products/$mt/downloads"
+    $res.BiosPageUrl = $res.PageUrl
+    if ($mt -notmatch '^[0-9A-Z]{4}$') { return $null }
+    $cat = Get-HttpXml 'https://download.lenovo.com/cdrt/td/catalogv2.xml' -Source 'Lenovo catalog'
+    if (-not $cat) { return $null }
+    $model = $null
+    foreach ($m in @($cat.SelectNodes("//*[local-name()='Model']"))) {
+        $types = @($m.SelectNodes("*[local-name()='Types']/*[local-name()='Type']") | ForEach-Object { ([string]$_.InnerText).Split(',') } | ForEach-Object { $_.Trim().ToUpper() })
+        if ($types -contains $mt) { $model = $m; break }
+    }
+    if (-not $model) { return $null }
+    $res.MatchedProduct = $model.GetAttribute('name')
+    $res.Source = "Lenovo update catalog (machine type $mt)"
+    $entries = @(foreach ($b in @($model.SelectNodes("*[local-name()='BIOS']"))) {
+        $u = ([string]$b.InnerText).Trim(); if (-not $u) { continue }
+        [pscustomobject]@{ Version = $b.GetAttribute('version'); IsBeta = $false; Date = ConvertTo-IsoDate $b.GetAttribute('date'); Size = $null
+                           Notes = $(if ($b.GetAttribute('image')) { "Package $($b.GetAttribute('image'))" }); Url = $u }
+    })
+    if (-not $entries.Count) { return $null }
+    # Lenovo: SMBIOS shows "N2EET67W (1.49 )"; the catalog shows "1.49" or "1.49-1.15" (BIOS-EC), or the code "N2EET67W"
+    $inst = [string]$script:Audit.System.BIOS.Version
+    $latest = [string]$entries[0].Version
+    $useCode = $latest -match '^[0-9A-Z]{4}[A-Z]{2}(\d{2})[0-9A-Z]'
+    $norm = if ($useCode) { { param($v) if ([string]$v -match '([0-9A-Z]{4}[A-Z]{2})(\d{2})[0-9A-Z]') { $Matches[2] } else { $null } } }
+            else { { param($v) $x = [string]$v; if ($x -match '\(\s*(\d+\.\d+)') { $Matches[1] } elseif ($x -match '^\s*(\d+\.\d+)') { $Matches[1] } else { Get-NumericVersion $x } } }
+    Set-BiosStatus $res $inst $entries $norm $true
+    return @{ Board = $res; Drivers = @() }
+}
+
+# --- Any maker: system firmware published through Windows Update ------------------
+# PCs with UEFI capsule updates report their firmware in the ESRT (HKLM\HARDWARE\UEFI\ESRT\<GUID>, Type 1 = system
+# firmware) and as a "System Firmware" device UEFI\RES_{GUID}. Makers (HP, Dell, Lenovo, Microsoft Surface, ASUS, Acer,
+# Samsung, ...) publish BIOS updates for that GUID to Windows Update; the Catalog finds them by the bare GUID.
+function Get-SystemFirmwareId {
+    $guid = $null; $esrt = $null
+    try {
+        foreach ($k in @(Get-ChildItem 'HKLM:\HARDWARE\UEFI\ESRT' -ErrorAction Stop)) {
+            $p = Get-ItemProperty $k.PSPath -ErrorAction SilentlyContinue
+            if ($p -and [int]$p.Type -eq 1) { $guid = ($k.PSChildName -replace '[{}]', '').ToLower(); $esrt = $p; break }
+        }
+    } catch {}
+    $dev = $null
+    foreach ($d in $script:DeviceList) {
+        $hw = @($d.HardwareIds) | Where-Object { $_ -match '(?i)^UEFI\\RES_\{([0-9a-f\-]{36})\}' } | Select-Object -First 1
+        if (-not $hw) { continue }
+        $g = ([regex]::Match($hw, '(?i)\{([0-9a-f\-]{36})\}')).Groups[1].Value.ToLower()
+        if ($guid -and $g -eq $guid) { $dev = $d; break }
+        if (-not $guid -and $d.Name -match '(?i)system firmware') { $guid = $g; $dev = $d; break }
+    }
+    if (-not $guid) { return $null }
+    $ver = $null
+    if ($esrt -and $null -ne $esrt.Version) { $v = [uint32]$esrt.Version; $ver = '{0}.{1}.{2}.{3}' -f (($v -shr 24) -band 255), (($v -shr 16) -band 255), (($v -shr 8) -band 255), ($v -band 255) }
+    return [pscustomobject]@{ Guid = $guid; EsrtVersion = $ver; Device = $dev }
+}
+
+function Get-FirmwareFromCatalog($vendor, $model) {
+    $fw = Get-SystemFirmwareId
+    if (-not $fw) { return $null }
+    $res = New-BiosResult $vendor $model
+    $res.Source = "Microsoft Update Catalog (firmware ID $($fw.Guid))"
+    $res.PageUrl = ($script:Audit.System.SupportLinks | Select-Object -First 1).Url
+    $res.BiosPageUrl = New-CatalogUrl $fw.Guid
+    $build = 0; try { $build = [int]$script:Audit.Windows.Build } catch {}
+    $isW11 = [bool]($script:Audit.Windows -and $script:Audit.Windows.IsWindows11)
+    $found = Get-CatalogResults $fw.Guid
+    $rows = @(foreach ($r in $found) { if ($r -and $r.Classification -match '(?i)firmware|driver' -and (Test-CatalogApplicable $r.Products $build $isW11)) { $r } })
+    if (-not $rows.Count) {
+        $res.Status = 'Not on Windows Update'
+        $res.Note = "The maker doesn't publish this PC's BIOS through Windows Update. Check the maker's support page."
+        return @{ Board = $res; Drivers = @() }
+    }
+    $seen = @{}
+    $entries = @($rows | Sort-Object Date -Descending | Where-Object { if ($seen.ContainsKey($_.Version)) { $false } else { $seen[$_.Version] = $true; $true } } | ForEach-Object {
+        [pscustomobject]@{ Version = $_.Version; IsBeta = $false; Date = $_.Date; Size = $_.Size; Notes = $_.Title; Url = $_.Url; UpdateId = $_.Id }
+    })
+    $res.Versions = @($entries | Select-Object -First 12)
+    $latest = $entries[0]
+    $dl = Get-CatalogDownloadUrl $latest.UpdateId
+    $res.Latest = [pscustomobject]@{ Version = $latest.Version; IsBeta = $false; Date = $latest.Date; Size = $latest.Size; Notes = $latest.Notes; Url = $(if ($dl) { $dl } else { $latest.Url }); DetailsUrl = $latest.Url }
+    $inst = [string]$script:Audit.System.BIOS.Version
+    $res.Installed = if ($fw.EsrtVersion) { "$inst (firmware $($fw.EsrtVersion))" } else { $inst }
+    $pkg = if ($fw.Device -and $fw.Device.Provider -notmatch '(?i)^Microsoft') { $fw.Device.Version } else { $null }
+    $biosDate = $script:Audit.System.BIOS.ReleaseDate
+    # The Catalog version is the maker's package version. Many makers encode it the same way as the firmware's own
+    # version (ESRT), so compare those when they share the first number; else use the installed package, then dates.
+    $esrtComparable = $fw.EsrtVersion -and ((Get-NumericVersion $latest.Version) -split '\.')[0] -eq ($fw.EsrtVersion -split '\.')[0] -and $fw.EsrtVersion -ne '0.0.0.0'
+    if ($esrtComparable) {
+        $newer = @($entries | Where-Object { (Compare-NumericVersion $_.Version $fw.EsrtVersion) -gt 0 })
+        $res.NewerCount = $newer.Count
+        $res.Status = if ($newer.Count) { "$($newer.Count) newer version$(if ($newer.Count -gt 1) { 's' }) available" } else { 'Up to date' }
+        if ($newer.Count) { $res.Note = "Windows Update has newer firmware for this PC. It is offered under Settings > Windows Update > Advanced options > Optional updates, and on the maker's support page." }
+    } elseif (($pkg -and (Compare-NumericVersion $latest.Version $pkg) -le 0) -or ($fw.EsrtVersion -and (Compare-NumericVersion $latest.Version $fw.EsrtVersion) -eq 0)) {
+        $res.Status = 'Up to date'; $res.NewerCount = 0
+    } elseif ($biosDate -and $latest.Date -and ([datetime]$latest.Date) -le ([datetime]$biosDate).AddDays(21)) {
+        $res.Status = 'Up to date'; $res.NewerCount = 0
+        $res.Note = "The newest firmware on Windows Update ($($latest.Date)) is not newer than the installed BIOS ($biosDate)."
+    } else {
+        $res.NewerCount = @($entries | Where-Object { -not $biosDate -or ([datetime]$_.Date) -gt ([datetime]$biosDate).AddDays(21) }).Count
+        $res.Status = 'Newer version available'
+        $res.Note = "Windows Update has firmware for this PC published on $($latest.Date), after the installed BIOS ($(if ($biosDate) { $biosDate } else { 'date unknown' })). Windows Update offers it under Optional updates; it can also be installed from the maker's support page."
+    }
+    if ($pkg) { $res.Note = (@($res.Note, "Installed firmware package: $pkg.") | Where-Object { $_ }) -join ' ' }
+    return @{ Board = $res; Drivers = @() }
+}
+
 function ConvertTo-NvidiaVersion([string]$winVer) {
     $d = ($winVer -replace '[^\d]', '')
     if ($d.Length -lt 5) { return $null }
@@ -1884,7 +2124,20 @@ Invoke-Section 'Online: manufacturer BIOS, drivers and part links' {
         'ASRock'   { $result = Get-AsrockBoard $S.Board.Product $cpuVendor $osTag }
         'MSI'      { $p = if ($S.IsCustomBuild -or -not $isLaptop) { $S.Board.Product } else { $S.SystemModel }; $result = Get-MsiBoard $p $isLaptop $osTag }
         'ASUS'     { $result = Get-AsusBoard (($S.Board.Product -replace '\s+$', '')) $osTag }
-        'Gigabyte' { $result = Get-GigabyteBoard $S.Board.Product $S.Board.Version }
+        'Gigabyte' { if ($S.IsCustomBuild -or -not $isLaptop) { $result = Get-GigabyteBoard $S.Board.Product $S.Board.Version } }
+        'HP'       { $result = Get-HpBios $S.Board.Product $S.FriendlyModel }
+        'Dell'     { $result = Get-DellBios $S.SystemSKU $S.FriendlyModel }
+        'Lenovo'   { $result = Get-LenovoBios $S.SystemModel $S.FriendlyModel }
+    }
+    # Any other maker, or when the maker's own list had nothing: the firmware Windows Update has for this PC
+    $boardFailed = (-not $result) -or ($result.Board.Status -match '^(Could not|Not checked)')
+    if ($boardFailed -and -not $S.IsCustomBuild -and $S.Vendor -ne 'Virtual machine') {
+        $fwResult = Get-FirmwareFromCatalog $S.Vendor $S.FriendlyModel
+        if ($fwResult) {
+            if ($result -and $result.Board.Note) { $fwResult.Board.Note = (@($fwResult.Board.Note, "Maker lookup: $($result.Board.Note)") | Where-Object { $_ }) -join ' ' }
+            if ($result -and @($result.Drivers).Count) { $fwResult.Drivers = $result.Drivers }
+            $result = $fwResult
+        }
     }
     $board = $null; $offers = @()
     if ($result) {
@@ -1908,10 +2161,14 @@ Invoke-Section 'Online: manufacturer BIOS, drivers and part links' {
     }
     if (-not $result) {
         $board = New-BiosResult $S.Vendor $S.FriendlyModel
-        $board.Status = 'No automatic lookup for this maker yet'
+        $board.Status = 'Check on the maker''s site'
         $board.PageUrl = ($S.SupportLinks | Select-Object -First 1).Url
         $board.Installed = $S.BIOS.Version
-        $board.Note = 'Use the support link; Dell, HP and Lenovo catalog lookups are planned.'
+        $board.Note = $(switch ($S.Vendor) {
+            'Apple'           { 'On a Mac, firmware updates come with macOS updates. Boot Camp drivers come from Apple''s Boot Camp Assistant.' }
+            'Virtual machine' { 'This is a virtual machine; its firmware is updated with the virtualisation software.' }
+            default           { "No BIOS list could be read for this $($S.Vendor) model automatically. Use the support link to check for a newer BIOS." }
+        })
     }
 
     # Graphics cards
@@ -2009,7 +2266,10 @@ Invoke-Section 'Online: manufacturer BIOS, drivers and part links' {
         $target | Add-Member -NotePropertyName ActionId -NotePropertyValue $a.Id -Force
     }
     if ($board -and $board.Latest -and $board.Latest.Url) {
-        & $addAction $board.Latest 'bios' "$($board.Vendor) $($board.MatchedProduct) BIOS $($board.Latest.Version)" $board.Latest.Url "$($board.Vendor) $($board.MatchedProduct)" @() $board.Installed $board.Latest.Version $null $board.Vendor $null
+        $bSigner = if ($board.Latest.Url -match '(?i)windowsupdate\.com|delivery\.mp\.microsoft\.com') { 'Microsoft' } else { @{ Dell = 'Dell'; Lenovo = 'Lenovo' }[[string]$board.Vendor] }
+        $bName = if ($board.MatchedProduct) { $board.MatchedProduct } else { $board.Model }
+        $bFull = if ("$bName" -match ('(?i)^' + [regex]::Escape([string]$board.Vendor) + '\b')) { "$bName" } else { "$($board.Vendor) $bName" }
+        & $addAction $board.Latest 'bios' "$bFull BIOS $($board.Latest.Version)" $board.Latest.Url $bFull @() $board.Installed $board.Latest.Version $bSigner $board.Vendor $null
     }
     foreach ($o in @($offers)) {
         if ($o.Url -and $o.Status -match '^(Newer|Probably newer|Generic|Compare manually|Not detected)') {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6 (not released yet)
+- BIOS checks for laptops and prebuilt PCs: HP (HP's BIOS catalog), Dell (Dell Command Update catalog, with Dell's driver list) and Lenovo (ThinkPad, ThinkCentre, ThinkStation, ThinkBook).
+- Every other PC maker (HP consumer models, Lenovo IdeaPad / Legion / Yoga, Acer, Surface, Samsung, Razer, Huawei and more): the BIOS Windows Update has for that exact PC, found by its firmware ID in the Microsoft Update Catalog.
+- BIOS downloads from HP, Dell and Lenovo; PCDoc never starts a BIOS update itself and explains how to install each kind of file.
+- Support links for more makers (Biostar, Supermicro, Colorful, Maxsun, NZXT, EVGA, Apple, LG, VAIO, Xiaomi, Panasonic, Getac).
+
 ## 0.4.5 (not released yet)
 - Renamed from PC Audit to PCDoc: `PCDoc.exe`, `Invoke-PCDoc.ps1`, `Documents\PCDoc reports`, `Downloads\PCDoc`. Existing PC Audit folders are moved to the new names on first run, so history, dismissals and downloads carry over.
 - MIT license.

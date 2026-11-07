@@ -449,7 +449,8 @@ derive();
 const M = A.Meta || {};
 document.title = `PCDoc: ${M.Computer || ''}`;
 $('#pcname').textContent = M.Computer || 'This PC';
-$('#pcmodel').textContent = [S.Vendor, S.FriendlyModel || S.Model].filter(Boolean).join(' ');
+const withVendor = (v, m) => !m ? (v || '') : (v && !String(m).toLowerCase().startsWith(String(v).toLowerCase()) ? `${v} ${m}` : String(m));
+$('#pcmodel').textContent = withVendor(S.Vendor, S.FriendlyModel || S.Model);
 $('#railfoot').innerHTML = `Scanned ${esc(String(M.Started || '').replace('T', ' ').slice(0, 16))}<br>${esc(W.Product || '')} ${esc(W.Version || '')}<br>` +
   (M.IsAdmin ? 'Run as administrator' : '<span class="warn">Not run as administrator: some data missing</span>') + `<br>PCDoc ${esc(M.Version || '')}`;
 
@@ -631,7 +632,8 @@ function renderUpdates(el) {
     ${HOST ? `Download buttons save files to your Downloads folder, check the digital signature, and then ask you before anything is installed. <a href="#" data-openfolder="">Open the downloads folder</a>` : 'Use the links to get files. Opened from the PCDoc app, these become buttons that download, check and set up each file.'}</p>
   <div class="cols">
     <div class="panel"><h2>BIOS / firmware</h2>${kv({
-      'Board': `${b.Vendor || ''} ${b.MatchedProduct || b.Model || ''}`,
+      [S.IsCustomBuild ? 'Board' : 'Model']: esc(withVendor(b.Vendor, b.MatchedProduct || b.Model)),
+      'Checked in': b.Source ? esc(b.Source) : null,
       'Installed': `<b>${esc(b.Installed || '?')}</b>`,
       'Latest stable': L.Version ? `<b>${esc(L.Version)}</b> (${esc(L.Date || '')}) ${actBtn(L, L.Url, 'Download')}` : null,
       'Latest beta': BT ? `${esc(BT.Version)} (${esc(BT.Date || '')}). Beta: only if it fixes a problem you have` : null,
@@ -640,10 +642,10 @@ function renderUpdates(el) {
       'Pages': [link(b.PageUrl, 'Product support page'), link(b.BiosPageUrl !== b.PageUrl ? b.BiosPageUrl : null, 'BIOS downloads')].filter(Boolean).join(' &nbsp; ') || null })}
       ${b.Note ? `<p class="note" style="margin-top:10px">⚠ ${esc(b.Note)}</p>` : ''}
       ${arr(b.Revisions).length > 1 ? `<p class="note">Revisions: ${arr(b.Revisions).map(r => link(r.Url, r.Name)).join(' · ')}</p>` : ''}
-      <p class="note" style="margin-top:10px">Only flash BIOS files for this exact board (and revision). Never use a BIOS from a different model or manufacturer.</p></div>
+      <p class="note" style="margin-top:10px">Only flash BIOS files made for this exact ${S.IsCustomBuild ? 'board (and revision)' : 'model'}. Never use a BIOS from a different model or manufacturer.</p></div>
     <div class="panel"><h2>Recent BIOS versions</h2><div id="t-biosv"></div></div>
   </div>
-  <h2>Drivers from the board maker</h2>
+  <h2>Drivers from the ${S.IsCustomBuild ? 'board' : 'PC'} maker</h2>
   <p class="note">The board or PC maker's current driver list compared with what this PC has. Version schemes differ between packages, so some rows are compared by release date or marked for manual comparison.
     <b>Generic Windows driver</b> means Windows' built-in driver is in use where the maker offers a dedicated one.</p>
   <div id="t-bdrv"></div>

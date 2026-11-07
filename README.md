@@ -7,7 +7,7 @@ The scan only reads. Updates are downloaded and installed only when you click a 
 ## What it does
 
 - **Hardware and drivers**: every device with its driver version, date and provider, with links to the maker's support page. Custom builds are identified from the motherboard.
-- **Updates**: latest BIOS and drivers from ASRock, ASUS, Gigabyte and MSI; NVIDIA and AMD graphics drivers; AMD chipset software; newer drivers for the same chip in the Microsoft Update Catalog, including ones published by other makers.
+- **Updates**: latest BIOS and drivers from ASRock, ASUS, Gigabyte and MSI; BIOS from HP, Dell (with Dell's driver list) and Lenovo's own catalogs; for any other PC maker, the BIOS Windows Update has for that exact PC; NVIDIA and AMD graphics drivers; AMD chipset software; newer drivers for the same chip in the Microsoft Update Catalog, including ones published by other makers.
 - **Download and install**: downloads go to `Downloads\PCDoc\<PC>\<date>\` and are kept for review. Only the makers' and Microsoft's own download servers are allowed, every file's digital signature is checked, and nothing is installed or opened without asking. Driver installs create a System Restore point first. BIOS files are download-only.
 - **Windows Update**: the full update history, with each failure marked as fixed by a later update, superseded, or still unresolved.
 - **Event logs and crashes**: driver and hardware errors grouped by source, blue screens, GPU hangs and dump files. Crash reports that Windows re-logs at every boot are counted once.

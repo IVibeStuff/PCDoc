@@ -81,7 +81,11 @@ The **Updates** tab checks the manufacturers' own download lists. The scan is st
 | Microsoft Update Catalog | For every chip on a vendor driver (or a generic Windows driver): newest driver in the same family, newest overall (a different driver branch is labelled), and what was published for this exact board. Only drivers that apply to this Windows version are counted. |
 | AMD | Latest AMD Chipset Software (compared with the installed version) and AMD's Adrenalin auto-detect installer for Radeon graphics |
 | Intel GPUs | Link to Intel's own detection tool |
-| Dell / HP / Lenovo | Support links (catalog lookups planned) |
+| HP | BIOS list from HP's per-platform catalog (`ftp.hp.com/pub/pcbios/<platform ID>`), mostly business models |
+| Dell | Dell Command Update catalog for the system ID: BIOS list and Dell's driver list |
+| Lenovo | Lenovo's update catalog by machine type (ThinkPad, ThinkCentre, ThinkStation, ThinkBook) |
+| Any PC maker | The BIOS that Windows Update has for this PC, found in the Microsoft Update Catalog by the firmware ID (UEFI ESRT). Used for HP consumer models, Lenovo IdeaPad / Legion / Yoga, Acer, Microsoft Surface, Samsung, Razer, Huawei, Dynabook, Fujitsu, Medion and others, and as a fallback when the maker's own list can't be read |
+| Others | Support links for Biostar, Supermicro, Colorful, Maxsun, NZXT, EVGA, Apple (Boot Camp), Framework, LG, VAIO, Xiaomi, Panasonic and Getac |
 
 Driver rows compare the maker's latest version with the installed device driver or driver package. They're compared by version where the numbering schemes match, otherwise by release date. *Generic Windows driver* means Windows' built-in driver is in use where the maker offers a real one.
 
@@ -125,6 +129,6 @@ Every step is logged to `Downloads\PCDoc\<PC>\downloads.log` (one JSON object pe
 
 ## Roadmap
 
-- **Next:** Dell/HP/Lenovo catalog lookups, and the cross-vendor tier (same chip, newer driver from another maker).
+- **Next:** HP and Lenovo driver lists (the BIOS is covered), and Acer's own download list.
 - Intel graphics and Wi-Fi: direct downloads (currently the Intel page opens instead).
 - Optional: decode minidumps automatically when WinDbg (cdb) is present.

@@ -32,7 +32,8 @@ $AllowedHosts = @(
     'us.download.nvidia.com', 'international.download.nvidia.com', 'download.nvidia.com',
     'drivers.amd.com', 'download.amd.com',
     'download.asrock.com', 'download.msi.com', 'download-2.msi.com', 'dlcdnets.asus.com', 'dlcdn.asus.com',
-    'download.gigabyte.com', 'downloadmirror.intel.com', 'downloadcenter.intel.com'
+    'download.gigabyte.com', 'downloadmirror.intel.com', 'downloadcenter.intel.com',
+    'ftp.hp.com', 'downloads.dell.com', 'dl.dell.com', 'download.lenovo.com'
 )
 
 function Out-Progress([double]$pct, [string]$text) { Write-Host ("PROGRESS {0} {1}" -f [int][math]::Round($pct), $text) }
@@ -199,7 +200,14 @@ try {
                 elseif ($sig.Status -ne 'Valid') { $next = 'blocked'; $note = 'The installer has no valid digital signature. It was not opened.' }
                 else { $next = 'launch' }
             }
-            if ($action.Kind -eq 'bios') { $next = 'manual'; if (-not $note) { $note = 'BIOS files are flashed from the BIOS itself, not from Windows.' } }
+            if ($action.Kind -eq 'bios' -and $next -ne 'blocked') {
+                # BIOS updates are never started by PCDoc; say how this kind of file is used
+                $next = 'manual'
+                $note = if ($ext -eq '.cab') { 'This is the firmware Windows Update installs. The safest way to install it is Settings > Windows Update > Advanced options > Optional updates. Plug in the charger first.' }
+                        elseif ($ext -in @('.exe', '.msi')) { "This is the maker's BIOS update program$(if ($sig -and $sig.Signer) { " (signed by $($sig.Signer))" }). Plug in the charger, close other programs and suspend BitLocker if it is on, then run it from the folder." }
+                        elseif ($ext -eq '.bin') { 'HP BIOS image: flash it from the BIOS (Update BIOS from a file on a USB drive) or with HP''s BIOS update tool.' }
+                        elseif (-not $note) { 'BIOS files are flashed from the BIOS itself, not from Windows.' } else { $note }
+            }
 
             $res = Join-Ordered $base ([ordered]@{ Stage = 'Prepare'; Ok = $true; File = $file; Folder = $workDir; Bytes = $bytes; Sha256 = $sha
                 Signer = $(if ($sig) { $sig.Signer }); SignatureStatus = $(if ($sig) { $sig.Status } else { 'Not applicable (archive)' })
